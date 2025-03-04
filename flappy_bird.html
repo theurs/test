@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flappy Bird Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #71c5cf;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        canvas {
+            display: block;
+            background: #71c5cf;
+            max-width: 100%;
+            max-height: 100vh;
+            touch-action: manipulation;
+        }
+        #game-over {
+            position: absolute;
+            font-size: 24px;
+            color: white;
+            text-align: center;
+            width: 100%;
+            display: none;
+            background-color: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        #start-message {
+            position: absolute;
+            font-size: 24px;
+            color: white;
+            text-align: center;
+            width: 100%;
+            background-color: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        @media (max-width: 768px) {
+            #game-over, #start-message {
+                font-size: 18px;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="start-message">
+        Нажмите на экран, чтобы начать игру
+    </div>
+    <div id="game-over">
+        Игра окончена!<br>
+        Ваш счет: <span id="final-score">0</span><br>
+        Нажмите на экран, чтобы начать снова
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverDiv = document.getElementById('game-over');
+        const finalScoreSpan = document.getElementById('final-score');
+        const startMessage = document.getElementById('start-message');
+        
+        // Настройка размера канваса
+        function resizeCanvas() {
+            const maxWidth = window.innerWidth > 414 ? 414 : window.innerWidth;
+            const maxHeight = window.innerHeight;
+            
+            canvas.width = maxWidth;
+            canvas.height = maxHeight;
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Игровые переменные
+        let score = 0;
+        let highScore = 0;
+        let frames = 0;
+        let gameOver = false;
+        let gameStarted = false;
+
+        // Константы
+        const gravity = 0.5;
+        const jumpStrength = -8;
+        const pipeWidth = 70; // Шире трубы
+        const pipeGap = 170; // Шире проход
+        const pipeSpacing = 150;
+        
+        // Птица
+        const bird = {
+            width: 30,
+            height: 30,
+            velocity: 0,
+            
+            reset() {
+                this.x = canvas.width * 0.3;
+                this.y = canvas.height / 2;
+                this.velocity = 0;
+            },
+            
+            draw() {
+                ctx.fillStyle = "#ffd700";
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.width/2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Глаза
+                ctx.fillStyle = "black";
+                ctx.beginPath();
+                ctx.arc(this.x + 8, this.y - 5, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Клюв
+                ctx.fillStyle = "orange";
+                ctx.beginPath();
+                ctx.moveTo(this.x + 15, this.y);
+                ctx.lineTo(this.x + 25, this.y);
+                ctx.lineTo(this.x + 15, this.y + 8);
+                ctx.fill();
+            },
+            
+            update() {
+                if (gameOver || !gameStarted) return;
+                
+                this.velocity += gravity;
+                this.y += this.velocity;
+                
+                // Проверка столкновения с землей или потолком
+                if (this.y + this.height/2 >= canvas.height) {
+                    this.y = canvas.height - this.height/2;
+                    endGame();
+                }
+                
+                if (this.y - this.height/2 <= 0) {
+                    this.y = this.height/2;
+                    this.velocity = 0;
+                }
+            },
+            
+            jump() {
+                if (!gameStarted) {
+                    startGame();
+                    return;
+                }
+                
+                if (gameOver) {
+                    resetGame();
+                    return;
+                }
+                
+                this.velocity = jumpStrength;
+            }
+        };
+        
+        bird.reset();
+        
+        // Массив труб
+        let pipes = [];
+        
+        // Функция создания труб
+        function createPipe() {
+            const pipeTop = Math.floor(Math.random() * (canvas.height - pipeGap - 100)) + 50;
+            
+            pipes.push({
+                x: canvas.width,
+                width: pipeWidth,
+                topHeight: pipeTop,
+                bottomY: pipeTop + pipeGap,
+                bottomHeight: canvas.height - (pipeTop + pipeGap),
+                passed: false
+            });
+        }
+        
+        // Отрисовка труб
+        function drawPipes() {
+            ctx.fillStyle = "green";
+            for (let pipe of pipes) {
+                // Верхняя труба
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
+                
+                // Колпак верхней трубы
+                ctx.fillStyle = "#0A5F04";
+                ctx.fillRect(pipe.x - 5, pipe.topHeight - 20, pipe.width + 10, 20);
+                ctx.fillStyle = "green";
+                
+                // Нижняя труба
+                ctx.fillRect(pipe.x, pipe.bottomY, pipe.width, pipe.bottomHeight);
+                
+                // Колпак нижней трубы
+                ctx.fillStyle = "#0A5F04";
+                ctx.fillRect(pipe.x - 5, pipe.bottomY, pipe.width + 10, 20);
+                ctx.fillStyle = "green";
+            }
+        }
+        
+        // Обновление труб
+        function updatePipes() {
+            if (gameOver || !gameStarted) return;
+            
+            if (frames % pipeSpacing === 0) {
+                createPipe();
+            }
+            
+            for (let pipe of pipes) {
+                pipe.x -= 2;
+                
+                // Обнаружение прохождения трубы
+                if (!pipe.passed && bird.x > pipe.x + pipe.width) {
+                    pipe.passed = true;
+                    score++;
+                }
+                
+                // Обнаружение столкновения
+                if (
+                    bird.x + bird.width/2 > pipe.x && 
+                    bird.x - bird.width/2 < pipe.x + pipe.width && 
+                    (bird.y - bird.height/2 < pipe.topHeight || 
+                     bird.y + bird.height/2 > pipe.bottomY)
+                ) {
+                    endGame();
+                }
+            }
+            
+            // Удаление труб, вышедших за пределы экрана
+            pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
+        }
+        
+        // Отрисовка фона
+        function drawBackground() {
+            ctx.fillStyle = "#71c5cf";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Облака
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.beginPath();
+            ctx.arc(canvas.width * 0.3, canvas.height * 0.2, 30, 0, Math.PI * 2);
+            ctx.arc(canvas.width * 0.3 + 25, canvas.height * 0.2 - 10, 30, 0, Math.PI * 2);
+            ctx.arc(canvas.width * 0.3 + 25, canvas.height * 0.2 + 15, 25, 0, Math.PI * 2);
+            ctx.arc(canvas.width * 0.3 - 15, canvas.height * 0.2 + 10, 25, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(canvas.width * 0.7, canvas.height * 0.3, 20, 0, Math.PI * 2);
+            ctx.arc(canvas.width * 0.7 + 15, canvas.height * 0.3 - 5, 20, 0, Math.PI * 2);
+            ctx.arc(canvas.width * 0.7 + 15, canvas.height * 0.3 + 10, 15, 0, Math.PI * 2);
+            ctx.arc(canvas.width * 0.7 - 10, canvas.height * 0.3 + 5, 15, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Земля
+            ctx.fillStyle = "#33a832";
+            ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
+            
+            // Трава
+            ctx.fillStyle = "#2C8C2C";
+            for (let i = 0; i < canvas.width; i += 15) {
+                ctx.fillRect(i, canvas.height - 30, 10, 5);
+            }
+        }
+        
+        // Отрисовка счета
+        function drawScore() {
+            ctx.fillStyle = "white";
+            ctx.font = Math.floor(canvas.width / 15) + "px Arial";
+            ctx.textAlign = "center";
+            
+            if (!gameStarted) {
+                return;
+            }
+            
+            // Текущий счет
+            ctx.fillText(`${score}`, canvas.width / 2, 50);
+            
+            // Рекорд (маленьким шрифтом)
+            ctx.font = Math.floor(canvas.width / 25) + "px Arial";
+            ctx.fillText(`Рекорд: ${highScore}`, canvas.width / 2, 80);
+        }
+        
+        // Конец игры
+        function endGame() {
+            gameOver = true;
+            highScore = Math.max(score, highScore);
+            finalScoreSpan.textContent = score;
+            gameOverDiv.style.display = "block";
+        }
+        
+        // Начало игры
+        function startGame() {
+            gameStarted = true;
+            startMessage.style.display = "none";
+        }
+        
+        // Перезапуск игры
+        function resetGame() {
+            bird.reset();
+            pipes = [];
+            score = 0;
+            frames = 0;
+            gameOver = false;
+            gameStarted = true;
+            gameOverDiv.style.display = "none";
+            startMessage.style.display = "none";
+        }
+        
+        // Игровой цикл
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            frames++;
+            
+            drawBackground();
+            updatePipes();
+            drawPipes();
+            
+            bird.update();
+            bird.draw();
+            
+            drawScore();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Обработчики событий
+        // Обработка касаний для мобильных устройств
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            bird.jump();
+        }, { passive: false });
+        
+        // Обработка кликов мыши
+        canvas.addEventListener('click', function() {
+            bird.jump();
+        });
+        
+        // Обработка клавиш клавиатуры
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                bird.jump();
+            }
+        });
+        
+        // Начало игры
+        resetGame();
+        gameStarted = false;
+        startMessage.style.display = "block";
+        gameLoop();
+    </script>
+</body>
+</html>
