@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Тетрис (Mobile)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Предотвращает прокрутку */
+            background-color: #222;
+            color: #fff;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Распределяет пространство */
+            align-items: center;
+            touch-action: manipulation; /* Отключает жесты типа двойного тапа для зума */
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10+ */
+            user-select: none; /* Standard syntax */
+            -webkit-tap-highlight-color: transparent; /* Убирает подсветку при тапе */
+        }
+
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            flex-grow: 1; /* Занимает доступное пространство */
+            justify-content: center; /* Центрирует холст по вертикали */
+        }
+
+        #tetrisCanvas {
+            background-color: #000;
+            border: 2px solid #fff; /* Уменьшил границу */
+            display: block; /* Убирает лишний отступ снизу */
+        }
+
+        #score {
+            font-size: 5vw; /* Адаптивный размер шрифта */
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        #controls {
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 15px 0;
+            background-color: #333; /* Фон для области кнопок */
+        }
+
+        #controls button {
+            font-size: 4vw; /* Адаптивный размер шрифта */
+            padding: 15px 20px;
+            background-color: #555;
+            color: white;
+            border: 1px solid #777;
+            border-radius: 8px;
+            cursor: pointer;
+            min-width: 60px; /* Минимальная ширина кнопки */
+            text-align: center;
+        }
+         #controls button:active {
+             background-color: #777; /* Обратная связь при нажатии */
+         }
+
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="tetrisCanvas"></canvas> <!-- Размеры будут установлены JS -->
+        <div id="score">Score: 0</div>
+    </div>
+
+    <div id="controls">
+        <button id="btnLeft">←</button>
+        <button id="btnRotate">↺</button>
+        <button id="btnRight">→</button>
+        <button id="btnDown">↓</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('tetrisCanvas');
+        const context = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+
+        const gridWidth = 10; // Уменьшил ширину для лучшего вида на мобильных
+        const gridHeight = 20;
+        let blockSize; // Будет вычислено
+
+        let grid = [];
+        let currentPiece = null;
+        let score = 0;
+        let gameRunning = true;
+        let dropInterval = 1000; // milliseconds
+        let lastDropTime = 0;
+
+        // Tetromino shapes and colors (те же, что и раньше)
+        const tetrominoes = [
+            { shape: [[1, 1, 1, 1]], color: 'cyan' },       // I
+            { shape: [[1, 1], [1, 1]], color: 'yellow' },     // O
+            { shape: [[0, 1, 0], [1, 1, 1]], color: 'purple' },   // T
+            { shape: [[1, 1, 0], [0, 1, 1]], color: 'green' },    // S
+            { shape: [[0, 1, 1], [1, 1, 0]], color: 'red' },      // Z
+            { shape: [[1, 0, 0], [1, 1, 1]], color: 'blue' },     // J
+            { shape: [[0, 0, 1], [1, 1, 1]], color: 'orange' }   // L
+        ];
+
+        function calculateCanvasSize() {
+            const controlsHeight = document.getElementById('controls').offsetHeight;
+            const scoreHeight = scoreDisplay.offsetHeight;
+            // Оставляем немного места сверху/снизу
+            const availableHeight = window.innerHeight - controlsHeight - scoreHeight - 40;
+            const availableWidth = window.innerWidth - 20; // Небольшие отступы по бокам
+
+            const blockW = Math.floor(availableWidth / gridWidth);
+            const blockH = Math.floor(availableHeight / gridHeight);
+
+            blockSize = Math.min(blockW, blockH);
+
+            canvas.width = gridWidth * blockSize;
+            canvas.height = gridHeight * blockSize;
+
+            // Перерисовываем после изменения размера
+            if (gameRunning) {
+                 drawGrid();
+                 drawPiece();
+            }
+        }
+
+
+        function initGrid() {
+            grid = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill(0));
+        }
+
+        function createPiece() {
+            const randomIndex = Math.floor(Math.random() * tetrominoes.length);
+            const piece = tetrominoes[randomIndex];
+            currentPiece = {
+                shape: piece.shape,
+                color: piece.color,
+                x: Math.floor(gridWidth / 2) - Math.ceil(piece.shape[0].length / 2),
+                y: 0
+            };
+             // Проверяем, не закончилась ли игра сразу после создания фигуры
+            if (!isValidMove(currentPiece.x, currentPiece.y, currentPiece.shape)) {
+                gameOver();
+            }
+        }
+
+        function drawGrid() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.strokeStyle = '#333'; // Цвет линий сетки (темнее)
+            context.lineWidth = 1;
+
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
+                    if (grid[y][x]) {
+                        context.fillStyle = grid[y][x];
+                        context.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+                        context.strokeRect(x * blockSize, y * blockSize, blockSize, blockSize);
+                    } else {
+                        // Можно опционально рисовать пустую сетку
+                        // context.strokeRect(x * blockSize, y * blockSize, blockSize, blockSize);
+                    }
+                }
+            }
+        }
+
+        function drawPiece() {
+            if (!currentPiece) return;
+            context.fillStyle = currentPiece.color;
+            context.strokeStyle = '#fff'; // Белая обводка для фигур
+            context.lineWidth = 1;
+            const shape = currentPiece.shape;
+            for (let row = 0; row < shape.length; row++) {
+                for (let col = 0; col < shape[row].length; col++) {
+                    if (shape[row][col]) {
+                        const x = (currentPiece.x + col) * blockSize;
+                        const y = (currentPiece.y + row) * blockSize;
+                        context.fillRect(x, y, blockSize, blockSize);
+                        context.strokeRect(x, y, blockSize, blockSize);
+                    }
+                }
+            }
+        }
+
+        function isValidMove(x, y, shape) {
+            for (let row = 0; row < shape.length; row++) {
+                for (let col = 0; col < shape[row].length; col++) {
+                    if (shape[row][col]) {
+                        let gridX = x + col;
+                        let gridY = y + row;
+
+                        // Проверка границ
+                        if (gridX < 0 || gridX >= gridWidth || gridY >= gridHeight) {
+                            return false;
+                        }
+                        // Проверка столкновений (только если клетка не пустая)
+                        // Важно: gridY >= 0, чтобы не проверять столкновения выше поля
+                        if (gridY >= 0 && grid[gridY] && grid[gridY][gridX]) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+
+        function rotatePiece(piece) {
+            const shape = piece.shape;
+            const rows = shape.length;
+            const cols = shape[0].length;
+            const rotatedShape = Array(cols).fill(null).map(() => Array(rows).fill(0));
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    rotatedShape[col][rows - 1 - row] = shape[row][col];
+                }
+            }
+            return rotatedShape;
+        }
+
+        // Функция для попытки поворота (используется и для кнопок, и для клавиатуры)
+        function attemptRotate() {
+             if (!currentPiece || !gameRunning) return;
+             const rotatedShape = rotatePiece(currentPiece);
+             // Простая проверка на выход за границы при повороте у стены
+             let potentialX = currentPiece.x;
+             if (!isValidMove(potentialX, currentPiece.y, rotatedShape)) {
+                 // Попробовать сдвинуть на 1 клетку влево/вправо, если уперлись в стену
+                 if (isValidMove(potentialX + 1, currentPiece.y, rotatedShape)) {
+                     potentialX++;
+                 } else if (isValidMove(potentialX - 1, currentPiece.y, rotatedShape)) {
+                     potentialX--;
+                 } else if (isValidMove(potentialX + 2, currentPiece.y, rotatedShape)) { // Для длинной палки
+                     potentialX += 2;
+                 } else if (isValidMove(potentialX - 2, currentPiece.y, rotatedShape)) { // Для длинной палки
+                     potentialX -= 2;
+                 }
+             }
+
+             // Если после сдвигов позиция валидна, применяем поворот
+             if (isValidMove(potentialX, currentPiece.y, rotatedShape)) {
+                 currentPiece.shape = rotatedShape;
+                 currentPiece.x = potentialX; // Обновляем X, если был сдвиг
+             }
+        }
+
+
+        function movePiece(dx) {
+            if (!currentPiece || !gameRunning) return;
+            const newX = currentPiece.x + dx;
+            if (isValidMove(newX, currentPiece.y, currentPiece.shape)) {
+                currentPiece.x = newX;
+            }
+        }
+
+        function dropPiece(manual = false) {
+            if (!currentPiece || !gameRunning) return;
+            const newY = currentPiece.y + 1;
+            if (isValidMove(currentPiece.x, newY, currentPiece.shape)) {
+                currentPiece.y = newY;
+                if (manual) { // Если вызвано кнопкой "вниз", сбрасываем таймер автопадения
+                    lastDropTime = performance.now();
+                }
+            } else {
+                // Не можем двигаться вниз - фиксируем фигуру
+                lockPiece();
+                clearLines(); // Очищаем линии после фиксации
+                createPiece(); // Создаем новую фигуру
+                // Проверка на Game Over уже в createPiece
+            }
+        }
+
+
+        function lockPiece() {
+            if (!currentPiece) return;
+            const shape = currentPiece.shape;
+            for (let row = 0; row < shape.length; row++) {
+                for (let col = 0; col < shape[row].length; col++) {
+                    if (shape[row][col]) {
+                        // Убедимся, что не пытаемся записать за пределы верха
+                        if (currentPiece.y + row >= 0) {
+                           grid[currentPiece.y + row][currentPiece.x + col] = currentPiece.color;
+                        }
+                    }
+                }
+            }
+             currentPiece = null; // Фигура зафиксирована
+        }
+
+        function clearLines() {
+            let linesCleared = 0;
+            for (let y = gridHeight - 1; y >= 0; y--) { // Идем снизу вверх
+                if (grid[y].every(cell => cell)) {
+                    // Линия полная
+                    linesCleared++;
+                    // Удаляем строку y
+                    grid.splice(y, 1);
+                    // Добавляем новую пустую строку вверху
+                    grid.unshift(Array(gridWidth).fill(0));
+                    // Так как мы удалили строку, нужно проверить эту же строку y снова
+                    y++;
+                }
+            }
+
+            if (linesCleared > 0) {
+                score += linesCleared * linesCleared * 100;
+                scoreDisplay.textContent = 'Score: ' + score;
+                // Ускоряем игру при наборе очков (опционально)
+                // dropInterval = Math.max(200, 1000 - Math.floor(score / 1000) * 50);
+            }
+        }
+
+        function gameOver() {
+             gameRunning = false;
+             // Используем setTimeout, чтобы alert не блокировал последнюю отрисовку
+             setTimeout(() => {
+                 alert("Game Over! Score: " + score + "\nНажмите OK, чтобы начать заново.");
+                 // Перезапуск игры
+                 startGame();
+             }, 100); // Небольшая задержка
+        }
+
+
+        function gameLoop(currentTime) {
+            if (!gameRunning) return;
+
+            const deltaTime = currentTime - lastDropTime;
+
+            if (deltaTime > dropInterval) {
+                dropPiece();
+                lastDropTime = currentTime;
+            }
+
+            // Отрисовка только если игра идет
+            drawGrid();
+            drawPiece();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Обработчики событий ---
+
+        // Клавиатура (для десктопа)
+        document.addEventListener('keydown', (event) => {
+            if (!gameRunning) return;
+
+            switch (event.key) {
+                case 'ArrowLeft':
+                    movePiece(-1);
+                    break;
+                case 'ArrowRight':
+                    movePiece(1);
+                    break;
+                case 'ArrowDown':
+                    dropPiece(true); // Ручное падение
+                    break;
+                case 'ArrowUp':
+                    attemptRotate();
+                    break;
+            }
+             // Предотвращаем прокрутку страницы стрелками
+             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                event.preventDefault();
+            }
+        });
+
+        // Сенсорные кнопки
+        document.getElementById('btnLeft').addEventListener('touchstart', (e) => { e.preventDefault(); movePiece(-1); });
+        document.getElementById('btnRight').addEventListener('touchstart', (e) => { e.preventDefault(); movePiece(1); });
+        document.getElementById('btnRotate').addEventListener('touchstart', (e) => { e.preventDefault(); attemptRotate(); });
+        document.getElementById('btnDown').addEventListener('touchstart', (e) => { e.preventDefault(); dropPiece(true); }); // Ручное падение
+
+        // Пересчет размера при изменении ориентации или размера окна
+        window.addEventListener('resize', calculateCanvasSize);
+        window.addEventListener('orientationchange', calculateCanvasSize);
+
+
+        // --- Инициализация игры ---
+        function startGame() {
+            initGrid();
+            calculateCanvasSize(); // Рассчитываем размер холста
+            score = 0;
+            scoreDisplay.textContent = 'Score: 0';
+            dropInterval = 1000;
+            gameRunning = true;
+            createPiece();
+            lastDropTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        startGame(); // Запускаем игру при загрузке
+
+    </script>
+</body>
+</html>
