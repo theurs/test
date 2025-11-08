@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silero TTS Web</title>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #f8f9fa;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --error-color: #dc3545;
+            --success-color: #28a745;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background-color: white;
+            padding: 25px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 25px;
+            color: var(--primary-color);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 16px;
+            font-family: var(--font-family);
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+        }
+        textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        .file-upload-label {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #6c757d;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .file-upload-label:hover {
+            background-color: #5a6268;
+        }
+        #file-input {
+            display: none;
+        }
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding-top: 29px; /* Align with select label */
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .checkbox-item input {
+            margin-right: 10px;
+        }
+        #tts-button {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #tts-button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        #tts-button:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+        }
+        #status {
+            text-align: center;
+            margin-top: 20px;
+            font-weight: 500;
+            min-height: 24px;
+        }
+        #result-container {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+        }
+        #audio-player {
+            width: 100%;
+        }
+        #download-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: var(--primary-color);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        #download-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Сервис синтеза речи</h1>
+
+    <!-- Блок ввода текста -->
+    <div class="form-group">
+        <label for="text-input">Введите текст для озвучивания</label>
+        <textarea id="text-input" placeholder="Привет, мир!"></textarea>
+        <label for="file-input" class="file-upload-label">Загрузить из файла (.txt)</label>
+        <input type="file" id="file-input" accept=".txt">
+    </div>
+
+    <!-- Блок настроек -->
+    <fieldset class="form-group">
+        <legend style="font-weight: 600;">Настройки синтеза</legend>
+        <div class="settings-grid">
+            <div class="form-group">
+                <label for="speaker-select">Голос</label>
+                <select id="speaker-select">
+                    <option value="xenia" selected>Ксения (xenia)</option>
+                    <option value="baya">Бая (baya)</option>
+                    <option value="aidar">Айдар (aidar)</option>
+                    <option value="eugene">Евгений (eugene)</option>
+                    <option value="kseniya">Ксения v3 (kseniya)</option>
+                </select>
+            </div>
+            <div class="checkbox-group">
+                <label class="checkbox-item"><input type="checkbox" id="put-accent-checkbox" checked> Расставлять ударения</label>
+                <label class="checkbox-item"><input type="checkbox" id="put-yo-checkbox" checked> Использовать букву «ё»</label>
+                <label class="checkbox-item" title="Например, в слове 'з+амок' или 'зам+ок'"><input type="checkbox" id="put-stress-homo-checkbox" checked> Ударения в омографах</label>
+                <label class="checkbox-item" title="Например, 'все' -> 'всё'"><input type="checkbox" id="put-yo-homo-checkbox" checked> Буква «ё» в омографах</label>
+                <label class="checkbox-item"><input type="checkbox" id="is-ssml-checkbox"> Это SSML-разметка</label>
+            </div>
+        </div>
+    </fieldset>
+
+    <!-- Кнопка и статус -->
+    <button id="tts-button">Озвучить</button>
+    <p id="status"></p>
+
+    <!-- Блок результата (скрыт по умолчанию) -->
+    <div id="result-container">
+        <audio id="audio-player" controls></audio>
+        <a id="download-link" href="#" download="speech.ogg">Скачать .ogg файл</a>
+    </div>
+</div>
+
+<script>
+    // --- Конфигурация ---
+    const API_URL = "https://silero-ks.dns.army";
+
+    // --- Получение элементов DOM ---
+    const textInput = document.getElementById('text-input');
+    const fileInput = document.getElementById('file-input');
+    const speakerSelect = document.getElementById('speaker-select');
+    const putAccentCheckbox = document.getElementById('put-accent-checkbox');
+    const putYoCheckbox = document.getElementById('put-yo-checkbox');
+    const isSsmlCheckbox = document.getElementById('is-ssml-checkbox');
+    const putStressHomoCheckbox = document.getElementById('put-stress-homo-checkbox');
+    const putYoHomoCheckbox = document.getElementById('put-yo-homo-checkbox');
+    const ttsButton = document.getElementById('tts-button');
+    const statusEl = document.getElementById('status');
+    const resultContainer = document.getElementById('result-container');
+    const audioPlayer = document.getElementById('audio-player');
+    const downloadLink = document.getElementById('download-link');
+
+    // --- Обработчик загрузки файла ---
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => { textInput.value = e.target.result; };
+        reader.readAsText(file);
+    });
+    
+    // --- Основная функция синтеза речи ---
+    ttsButton.addEventListener('click', async () => {
+        const text = textInput.value.trim();
+        if (!text) {
+            statusEl.textContent = "Ошибка: текстовое поле не может быть пустым.";
+            statusEl.style.color = "var(--error-color)";
+            return;
+        }
+
+        ttsButton.disabled = true;
+        statusEl.textContent = "Идет синтез, пожалуйста, подождите...";
+        statusEl.style.color = "var(--text-color)";
+        resultContainer.style.display = 'none';
+
+        const isSsml = isSsmlCheckbox.checked;
+        let endpoint = '';
+        let payload = {};
+        
+        const commonPayload = {
+            speaker: speakerSelect.value,
+            put_accent: putAccentCheckbox.checked,
+            put_yo: putYoCheckbox.checked,
+            put_stress_homo: putStressHomoCheckbox.checked,
+            put_yo_homo: putYoHomoCheckbox.checked
+        };
+
+        if (isSsml) {
+            endpoint = '/tts/ssml';
+            payload = { ssml_text: text, ...commonPayload };
+        } else {
+            endpoint = '/tts/text';
+            payload = { text: text, ...commonPayload };
+        }
+
+        try {
+            const response = await fetch(API_URL + endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || `Ошибка сервера: ${response.status}`);
+            }
+
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+
+            audioPlayer.src = audioUrl;
+            downloadLink.href = audioUrl;
+
+            statusEl.textContent = "Готово!";
+            statusEl.style.color = "var(--success-color)";
+            resultContainer.style.display = 'block';
+
+        } catch (error) {
+            statusEl.textContent = `Критическая ошибка: ${error.message}`;
+            statusEl.style.color = "var(--error-color)";
+            console.error("Fetch error:", error);
+        } finally {
+            ttsButton.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
