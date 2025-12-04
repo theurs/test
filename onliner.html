@@ -3,38 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#1a1b1e" media="(prefers-color-scheme: dark)">
-    <title>Live Network Monitor</title>
+    <title>Fast Network Monitor</title>
     
     <style>
         :root {
-            /* Цветовая палитра */
-            --bg-light: #f0f2f5;
-            --bg-dark: #121212;
-            --card-light: #ffffff;
-            --card-dark: #1e1e1e;
-            
-            --text-main: #2d3436;
-            --text-sub: #636e72;
-            
-            /* Цвета статусов */
-            --color-online: #00b894;  /* Зеленый мятный */
-            --color-offline: #d63031; /* Красный */
-            --color-check: #fdcb6e;   /* Желтый */
-            --color-idle: #b2bec3;    /* Серый */
-            
-            --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            --bg: #f0f2f5;
+            --card: #ffffff;
+            --text: #2d3436;
+            --green: #00b894;
+            --red: #d63031;
+            --gray: #b2bec3;
         }
 
-        /* Темная тема */
         @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-light: var(--bg-dark);
-                --card-light: var(--card-dark);
-                --text-main: #dfe6e9;
-                --text-sub: #a4b0be;
-            }
+            :root { --bg: #121212; --card: #1e1e1e; --text: #dfe6e9; }
         }
 
         body {
@@ -43,249 +25,166 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: var(--bg-light);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            transition: background 0.3s ease;
+            background: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            transition: background 0.3s;
         }
 
-        .card {
-            background: var(--card-light);
+        .container {
+            background: var(--card);
             padding: 40px;
             border-radius: 24px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
             text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             width: 100%;
-            max-width: 340px;
-            position: relative;
+            max-width: 320px;
         }
 
-        /* --- ЛОГИКА ШЕСТЕРЕНКИ --- */
-        .gear-wrapper {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 30px;
-            position: relative;
+        /* Шестеренка */
+        .gear-box {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 20px;
         }
 
         .gear-svg {
             width: 100%;
             height: 100%;
-            fill: var(--color-idle);
-            
-            /* Анимация задана ВСЕГДА, но мы управляем её воспроизведением */
-            animation: spin 3s linear infinite; 
-            /* По умолчанию стоит на паузе */
+            fill: var(--gray);
+            /* По умолчанию крутится, но пауза */
+            animation: spin 2s linear infinite; 
             animation-play-state: paused;
-            
-            transition: fill 0.5s ease; /* Плавная смена цвета */
+            transition: fill 0.3s ease;
         }
 
-        /* Состояние: ПРОВЕРКА (Желтый, крутится быстро) */
-        .gear-svg[data-state="checking"] {
-            fill: var(--color-check);
+        /* Логика анимации */
+        .gear-svg.spinning {
+            fill: var(--green);
             animation-play-state: running;
-            animation-duration: 1.5s; /* Быстрее при проверке */
         }
 
-        /* Состояние: ОНЛАЙН (Зеленый, крутится плавно) */
-        .gear-svg[data-state="online"] {
-            fill: var(--color-online);
-            animation-play-state: running;
-            animation-duration: 4s; /* Спокойное вращение */
+        .gear-svg.stopped {
+            fill: var(--red);
+            animation-play-state: paused;
         }
 
-        /* Состояние: ОФЛАЙН (Красный, СТОП) */
-        .gear-svg[data-state="offline"] {
-            fill: var(--color-offline);
-            animation-play-state: paused; /* Замирает */
-        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
 
-        @keyframes spin {
-            100% { transform: rotate(360deg); }
-        }
-
-        /* --- Тексты и интерфейс --- */
-        h1 {
-            font-size: 1.4rem;
-            margin: 0 0 10px;
-            color: var(--text-main);
-        }
-
-        .status-text {
-            font-size: 1rem;
-            color: var(--text-sub);
-            margin-bottom: 25px;
-            font-weight: 500;
-            min-height: 1.5em;
-        }
-
-        .ping-badge {
+        h2 { margin: 0; color: var(--text); font-size: 1.2rem; }
+        p { margin: 5px 0 0; color: var(--gray); font-size: 0.9rem; min-height: 1.2em; }
+        
+        .status-dot {
             display: inline-block;
-            padding: 6px 12px;
-            border-radius: 8px;
-            background: rgba(0,0,0,0.05);
-            color: var(--text-sub);
-            font-size: 0.85rem;
-            font-family: monospace;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: all 0.3s var(--ease-out);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--gray);
+            margin-right: 5px;
         }
-        
-        .ping-badge.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .btn-retry {
-            margin-top: 30px;
-            background: transparent;
-            border: 2px solid rgba(0,0,0,0.1);
-            color: var(--text-main);
-            padding: 12px 30px;
-            border-radius: 50px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .btn-retry:active { transform: scale(0.95); background: rgba(0,0,0,0.05); }
-
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h1>Монитор сети</h1>
-        
-        <div class="gear-wrapper">
-            <!-- SVG шестеренка -->
-            <svg class="gear-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <div class="container">
+        <div class="gear-box">
+            <svg class="gear-svg" id="gear" viewBox="0 0 24 24">
                 <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.83c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.37c-0.59,0.24-1.13,0.57-1.62,0.94L5.24,5.35c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 c-0.12,0.21-0.08,0.47,0.12,0.61l2.03,1.58c-0.05,0.3-0.09,0.63-0.09,0.94s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.08-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
             </svg>
         </div>
-
-        <div class="status-text" id="status-text">Инициализация...</div>
-        <div class="ping-badge" id="ping-badge">0 ms</div>
-        
-        <br>
-        <button class="btn-retry" onclick="networkApp.checkNow()">Обновить</button>
+        <h2 id="status-title">Загрузка...</h2>
+        <p id="ping-text"><span class="status-dot"></span>-- ms</p>
     </div>
 
     <script>
-        class NetworkMonitor {
-            constructor() {
-                // UI Elements
-                this.gear = document.querySelector('.gear-svg');
-                this.text = document.getElementById('status-text');
-                this.pingBadge = document.getElementById('ping-badge');
+        const gear = document.getElementById('gear');
+        const title = document.getElementById('status-title');
+        const pingText = document.getElementById('ping-text');
+        const dot = document.querySelector('.status-dot');
+
+        const endpoints = [
+            'https://www.google.com/favicon.ico',
+            'https://1.1.1.1/favicon.ico',
+            'https://github.com/favicon.ico',
+            'https://www.bing.com/favicon.ico'
+        ];
+
+        // Флаг, чтобы не запускать проверки слишком часто, если предыдущая еще идет
+        let isChecking = false;
+
+        async function checkConnection() {
+            if (isChecking) return;
+            isChecking = true;
+
+            const startTime = Date.now();
+            
+            // 1. Создаем массив промисов (запросов)
+            // Мы запускаем их ВСЕ ОДНОВРЕМЕННО
+            const checks = endpoints.map(url => {
+                const controller = new AbortController();
+                // ТАЙМАУТ: Всего 1.5 секунды. Если дольше - считаем ошибкой.
+                const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+                return fetch(`${url}?_=${Date.now()}`, {
+                    method: 'HEAD',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    signal: controller.signal
+                })
+                .then(() => {
+                    clearTimeout(timeoutId);
+                    return true; // Успех
+                })
+                .catch(() => {
+                    clearTimeout(timeoutId);
+                    return Promise.reject(); // Ошибка
+                });
+            });
+
+            try {
+                // 2. Promise.any ждет САМОГО ПЕРВОГО успешного ответа
+                // Если хоть один ответил - интернет есть.
+                await Promise.any(checks);
                 
-                this.isOnline = false;
-                
-                // Endpoints для проверки (HEAD запросы)
-                this.endpoints = [
-                    'https://www.google.com/favicon.ico',
-                    'https://1.1.1.1/favicon.ico', 
-                    'https://github.com/favicon.ico'
-                ];
-
-                this.init();
-            }
-
-            init() {
-                // Слушатели браузера (мгновенная реакция на WiFi on/off)
-                window.addEventListener('online', () => this.handleSystemEvent(true));
-                window.addEventListener('offline', () => this.handleSystemEvent(false));
-
-                // Первая проверка
-                this.checkConnection();
-
-                // Фоновая проверка каждые 5 секунд, чтобы подтверждать что инет реальный
-                // (Браузер может врать, что WiFi есть, а инета нет)
-                setInterval(() => this.checkConnection(), 5000);
-            }
-
-            handleSystemEvent(isOnline) {
-                if (!isOnline) {
-                    this.updateUI('offline');
-                } else {
-                    this.checkConnection(); // Перепроверяем пинг
-                }
-            }
-
-            checkNow() {
-                this.checkConnection();
-            }
-
-            async checkConnection() {
-                // Если мы уже оффлайн, ставим желтый статус "проверки"
-                // Если мы онлайн, оставляем зеленым, чтобы не мелькало желтым каждые 5 сек
-                if (!this.isOnline) {
-                    this.updateUI('checking');
-                }
-
-                const startTime = Date.now();
-                let success = false;
-
-                for (let url of this.endpoints) {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 сек таймаут
-
-                    try {
-                        // _=${Date.now()} нужен, чтобы не брать картинку из кеша
-                        await fetch(`${url}?_=${Date.now()}`, {
-                            method: 'HEAD',
-                            mode: 'no-cors',
-                            cache: 'no-store',
-                            signal: controller.signal
-                        });
-                        
-                        clearTimeout(timeoutId);
-                        success = true;
-                        break;
-                    } catch (e) {
-                        clearTimeout(timeoutId);
-                        continue;
-                    }
-                }
-
                 const ping = Date.now() - startTime;
-                
-                if (success) {
-                    this.isOnline = true;
-                    this.updateUI('online', ping);
-                } else {
-                    this.isOnline = false;
-                    this.updateUI('offline');
-                }
-            }
-
-            updateUI(state, ping = 0) {
-                // Логика визуализации
-                this.gear.setAttribute('data-state', state);
-
-                if (state === 'checking') {
-                    this.text.textContent = 'Установка связи...';
-                    this.pingBadge.classList.remove('visible');
-                } 
-                else if (state === 'online') {
-                    this.text.textContent = 'Система в норме';
-                    this.text.style.color = 'var(--color-online)';
-                    this.pingBadge.textContent = `PING: ${ping} ms`;
-                    this.pingBadge.classList.add('visible');
-                } 
-                else if (state === 'offline') {
-                    this.text.textContent = 'Соединение разорвано';
-                    this.text.style.color = 'var(--color-offline)';
-                    this.pingBadge.classList.remove('visible');
-                    
-                    // Вибрация при потере сети (только на мобилках)
-                    if (navigator.vibrate) navigator.vibrate(200);
-                }
+                updateUI(true, ping);
+            } catch (error) {
+                // Если ВСЕ запросы провалились (AggregateError)
+                updateUI(false);
+            } finally {
+                isChecking = false;
             }
         }
 
-        const networkApp = new NetworkMonitor();
+        function updateUI(isOnline, ping = 0) {
+            if (isOnline) {
+                gear.classList.add('spinning');
+                gear.classList.remove('stopped');
+                title.textContent = "Онлайн";
+                pingText.innerHTML = `<span class="status-dot" style="background:#00b894"></span>Ping: ${ping}ms`;
+                title.style.color = 'var(--text)';
+            } else {
+                gear.classList.remove('spinning');
+                gear.classList.add('stopped');
+                title.textContent = "Нет сети";
+                pingText.innerHTML = `<span class="status-dot" style="background:#d63031"></span>Проверьте соединение`;
+                title.style.color = 'var(--red)';
+                
+                // Вибрация
+                if (navigator.vibrate) navigator.vibrate(100);
+            }
+        }
+
+        // Запуск
+        checkConnection();
+        
+        // Интервал теперь 2 секунды (вместо 5)
+        // Т.к. запросы легкие (HEAD) и идут быстро, это не нагрузит сеть
+        setInterval(checkConnection, 2000);
+
+        // Мгновенная реакция на аппаратные события
+        window.addEventListener('offline', () => updateUI(false));
+        window.addEventListener('online', checkConnection);
+
     </script>
 </body>
 </html>
