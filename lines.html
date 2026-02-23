@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Color Lines Modern</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --board-bg: #1e293b;
+            --cell-bg: #334155;
+            --text-color: #f8fafc;
+            --accent-color: #38bdf8;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            touch-action: manipulation;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        header {
+            width: 100%;
+            max-width: 400px;
+            padding: 15px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stats {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .score-box {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .score-box span { color: var(--accent-color); }
+
+        .next-colors {
+            display: flex;
+            gap: 8px;
+            background: var(--board-bg);
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .next-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #555;
+            box-shadow: inset -2px -2px 6px rgba(0,0,0,0.4);
+        }
+
+        .board {
+            width: 95vw;
+            max-width: 400px;
+            height: 95vw;
+            max-height: 400px;
+            background-color: var(--board-bg);
+            padding: 6px;
+            border-radius: 12px;
+            box-sizing: border-box;
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+            gap: 4px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .cell {
+            background-color: var(--cell-bg);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .ball {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            box-shadow: 2px 4px 6px rgba(0,0,0,0.3), inset -4px -4px 8px rgba(0,0,0,0.3);
+        }
+
+        /* Анимация появления только для НОВЫХ шаров */
+        .ball.popIn {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Более плавный прыжок (0.6 сек) */
+        .ball.selected {
+            animation: bounce 0.6s infinite alternate cubic-bezier(0.5, 0.05, 1, 0.5);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(0,0,0,0.3);
+        }
+
+        .ball.popOut {
+            animation: popOut 0.3s forwards;
+        }
+
+        button.restart {
+            margin-top: 20px;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 25px;
+            background: var(--accent-color);
+            color: #0f172a;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(56, 189, 248, 0.4);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        button.restart:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 5px rgba(56, 189, 248, 0.4);
+        }
+
+        .color-0 { background: radial-gradient(circle at 30% 30%, #fca5a5, #ef4444, #991b1b); }
+        .color-1 { background: radial-gradient(circle at 30% 30%, #93c5fd, #3b82f6, #1e3a8a); }
+        .color-2 { background: radial-gradient(circle at 30% 30%, #6ee7b7, #10b981, #064e3b); }
+        .color-3 { background: radial-gradient(circle at 30% 30%, #fde047, #eab308, #713f12); }
+        .color-4 { background: radial-gradient(circle at 30% 30%, #d8b4fe, #a855f7, #4c1d95); }
+        .color-5 { background: radial-gradient(circle at 30% 30%, #67e8f9, #06b6d4, #164e63); }
+        .color-6 { background: radial-gradient(circle at 30% 30%, #fdba74, #f97316, #7c2d12); }
+
+        @keyframes bounce {
+            from { transform: translateY(0) scale(1.05); }
+            to { transform: translateY(-25%) scale(0.95); }
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes popOut {
+            from { transform: scale(1); opacity: 1; }
+            to { transform: scale(0); opacity: 0; }
+        }
+
+        #game-over {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        #game-over.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #game-over h2 { font-size: 2.5rem; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="stats">
+            <div class="score-box">Очки: <span id="score">0</span></div>
+            <div class="score-box" style="font-size:0.9rem; color:#94a3b8;">Рекорд: <span id="highscore">0</span></div>
+        </div>
+        <div class="next-colors" id="next-colors">
+            <div class="next-dot"></div>
+            <div class="next-dot"></div>
+            <div class="next-dot"></div>
+        </div>
+    </header>
+
+    <div class="board" id="board"></div>
+
+    <button class="restart" onclick="initGame()">Начать заново</button>
+
+    <div id="game-over">
+        <h2>Игра окончена!</h2>
+        <p class="score-box" style="font-size: 1.5rem; margin-bottom: 20px;">Ваш счет: <span id="final-score">0</span></p>
+        <button class="restart" onclick="initGame()">Сыграть еще</button>
+    </div>
+
+<script>
+    const BOARD_SIZE = 9;
+    const COLORS_COUNT = 7;
+    const WIN_LINE = 5;
+
+    let board = [];
+    let score = 0;
+    let highScore = localStorage.getItem('lines-high-score') || 0;
+    let nextColors = [];
+    let selectedCell = null;
+    let isProcessing = false;
+
+    const boardEl = document.getElementById('board');
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('highscore');
+    const nextColorsEl = document.getElementById('next-colors');
+    const gameOverEl = document.getElementById('game-over');
+    const finalScoreEl = document.getElementById('final-score');
+
+    function initGame() {
+        board = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null));
+        score = 0;
+        selectedCell = null;
+        isProcessing = false;
+        
+        highScoreEl.innerText = highScore;
+        gameOverEl.classList.remove('visible');
+        updateScore();
+        
+        // Создаем клетки поля один раз, а не при каждом клике!
+        createBoardDOM();
+        
+        generateNextColors();
+        spawnBalls(5);
+    }
+
+    // Одноразовая генерация DOM-элементов сетки
+    function createBoardDOM() {
+        boardEl.innerHTML = '';
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.id = `cell-${r}-${c}`;
+                cell.onclick = () => handleCellClick(r, c);
+                boardEl.appendChild(cell);
+            }
+        }
+    }
+
+    function generateNextColors() {
+        nextColors = [];
+        for (let i = 0; i < 3; i++) {
+            nextColors.push(Math.floor(Math.random() * COLORS_COUNT));
+        }
+        updateNextColorsUI();
+    }
+
+    function updateNextColorsUI() {
+        nextColorsEl.innerHTML = '';
+        nextColors.forEach(colorIdx => {
+            const dot = document.createElement('div');
+            dot.className = `next-dot color-${colorIdx}`;
+            nextColorsEl.appendChild(dot);
+        });
+    }
+
+    // Умная перерисовка: обновляет только содержимое клеток
+    function renderBoard(spawnedCells = []) {
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                const cell = document.getElementById(`cell-${r}-${c}`);
+                const color = board[r][c];
+                let ball = cell.querySelector('.ball');
+
+                if (color !== null) {
+                    if (!ball) {
+                        // Создаем шарик, если его тут не было
+                        ball = document.createElement('div');
+                        ball.className = `ball color-${color}`;
+                        
+                        // Анимация появления только для сгенерированных новых шаров
+                        const isSpawned = spawnedCells.some(sc => sc.r === r && sc.c === c);
+                        if (isSpawned) {
+                            ball.classList.add('popIn');
+                        }
+                        
+                        cell.appendChild(ball);
+                    } else {
+                        // Если шарик уже тут, просто следим за его цветом и убираем ненужные классы
+                        ball.className = `ball color-${color}`;
+                    }
+
+                    // Добавляем класс выделения, если нужно
+                    if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
+                        ball.classList.add('selected');
+                    }
+                } else {
+                    // Удаляем шарик, если в массиве пусто
+                    if (ball) {
+                        cell.removeChild(ball);
+                    }
+                }
+            }
+        }
+    }
+
+    async function animateMovement(path, color) {
+        return new Promise(resolve => {
+            const ghost = document.createElement('div');
+            ghost.className = `ball color-${color}`;
+            
+            ghost.style.position = 'fixed';
+            ghost.style.left = '0px'; 
+            ghost.style.top = '0px';   
+            ghost.style.zIndex = '1000';
+            ghost.style.margin = '0';
+            ghost.style.pointerEvents = 'none';
+            ghost.style.animation = 'none'; 
+            
+            document.body.appendChild(ghost);
+
+            const keyframes = [];
+            for (let i = 0; i < path.length; i++) {
+                const cellEl = document.getElementById(`cell-${path[i].r}-${path[i].c}`);
+                const rect = cellEl.getBoundingClientRect();
+                
+                keyframes.push({
+                    transform: `translate(${rect.left + rect.width * 0.1}px, ${rect.top + rect.height * 0.1}px)`,
+                    width: `${rect.width * 0.8}px`,
+                    height: `${rect.height * 0.8}px`
+                });
+            }
+
+            ghost.style.transform = keyframes[0].transform;
+            ghost.style.width = keyframes[0].width;
+            ghost.style.height = keyframes[0].height;
+
+            const duration = path.length * 50; 
+
+            const animation = ghost.animate(keyframes, {
+                duration: duration,
+                easing: 'linear',
+                fill: 'forwards'
+            });
+
+            animation.onfinish = () => {
+                ghost.remove();
+                resolve();
+            };
+        });
+    }
+
+    async function handleCellClick(r, c) {
+        if (isProcessing) return;
+
+        // Клик по шарику
+        if (board[r][c] !== null) {
+            if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
+                selectedCell = null;
+            } else {
+                selectedCell = { r, c };
+            }
+            renderBoard(); // Обновит только класс .selected
+            return;
+        }
+
+        // Клик по пустой клетке, если шарик выбран
+        if (selectedCell && board[r][c] === null) {
+            const path = findPath(selectedCell.r, selectedCell.c, r, c);
+            
+            if (path) {
+                isProcessing = true;
+                const color = board[selectedCell.r][selectedCell.c];
+                
+                // 1. Убираем шарик
+                board[selectedCell.r][selectedCell.c] = null;
+                selectedCell = null;
+                renderBoard(); // Шарик исчезнет
+
+                // 2. Анимация
+                await animateMovement(path, color);
+
+                // 3. Ставим шарик на новое место
+                board[r][c] = color;
+                renderBoard(); // Шарик появится без вспышки popIn
+
+                // 4. Проверяем линии
+                let cleared = await checkAndClearLines();
+                
+                if (cleared === 0) {
+                    spawnBalls(3, true);
+                    generateNextColors();
+                    await checkAndClearLines();
+                }
+
+                if (getEmptyCells().length === 0) {
+                    endGame();
+                }
+                isProcessing = false;
+            } else {
+                // Пути нет
+                selectedCell = null;
+                renderBoard();
+            }
+        }
+    }
+
+    function findPath(r1, c1, r2, c2) {
+        let queue = [{r: r1, c: c1, path: [{r: r1, c: c1}]}];
+        let visited = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(false));
+        visited[r1][c1] = true;
+
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+        while (queue.length > 0) {
+            let curr = queue.shift();
+            
+            if (curr.r === r2 && curr.c === c2) return curr.path;
+
+            for (let d of dirs) {
+                let nr = curr.r + d[0];
+                let nc = curr.c + d[1];
+
+                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                    if (!visited[nr][nc] && board[nr][nc] === null) {
+                        visited[nr][nc] = true;
+                        queue.push({
+                            r: nr, 
+                            c: nc, 
+                            path: [...curr.path, {r: nr, c: nc}]
+                        });
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    function spawnBalls(count, useNextColors = false) {
+        let emptyCells = getEmptyCells();
+        let spawnedCells = [];
+
+        for (let i = 0; i < count; i++) {
+            if (emptyCells.length === 0) break;
+            
+            let randIdx = Math.floor(Math.random() * emptyCells.length);
+            let cell = emptyCells.splice(randIdx, 1)[0];
+            
+            let color = useNextColors ? nextColors[i] : Math.floor(Math.random() * COLORS_COUNT);
+            board[cell.r][cell.c] = color;
+            spawnedCells.push(cell); // Запоминаем новые шарики
+        }
+        
+        // Перерисовываем с указанием тех, кому нужна анимация появления
+        renderBoard(spawnedCells);
+    }
+
+    function getEmptyCells() {
+        let empty = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c] === null) empty.push({r, c});
+            }
+        }
+        return empty;
+    }
+
+    async function checkAndClearLines() {
+        let toClear = new Set();
+
+        const checkDirection = (r, c, dr, dc) => {
+            let color = board[r][c];
+            if (color === null) return;
+            
+            let line = [[r, c]];
+            let nr = r + dr, nc = c + dc;
+            
+            while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === color) {
+                line.push([nr, nc]);
+                nr += dr; nc += dc;
+            }
+            
+            if (line.length >= WIN_LINE) {
+                line.forEach(([lr, lc]) => toClear.add(`${lr},${lc}`));
+            }
+        }
+
+        for(let r = 0; r < BOARD_SIZE; r++) {
+            for(let c = 0; c < BOARD_SIZE; c++) {
+                checkDirection(r, c, 0, 1);
+                checkDirection(r, c, 1, 0);
+                checkDirection(r, c, 1, 1);
+                checkDirection(r, c, 1, -1);
+            }
+        }
+
+        if (toClear.size > 0) {
+            let count = toClear.size;
+            let points = count * 2 + (count - WIN_LINE) * 4;
+            score += points;
+            updateScore();
+
+            let cellsToClear = Array.from(toClear).map(str => str.split(',').map(Number));
+            
+            cellsToClear.forEach(([cr, cc]) => {
+                let cellEl = document.getElementById(`cell-${cr}-${cc}`);
+                let ballEl = cellEl.querySelector('.ball');
+                if(ballEl) ballEl.classList.add('popOut');
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            cellsToClear.forEach(([cr, cc]) => {
+                board[cr][cc] = null;
+            });
+            renderBoard();
+        }
+
+        return toClear.size;
+    }
+
+    function updateScore() {
+        scoreEl.innerText = score;
+        if (score > highScore) {
+            highScore = score;
+            highScoreEl.innerText = highScore;
+            localStorage.setItem('lines-high-score', highScore);
+        }
+    }
+
+    function endGame() {
+        finalScoreEl.innerText = score;
+        gameOverEl.classList.add('visible');
+    }
+
+    initGame();
+
+</script>
+</body>
+</html>
