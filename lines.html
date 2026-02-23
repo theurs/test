@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Color Lines Modern + Vertical Mode</title>
+    <title>Color Lines Modern</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -91,10 +91,9 @@
         }
 
         .board {
-            /* Ширина зависит от колонок, высота от строк */
+            /* Поддержка прямоугольного поля с сохранением квадратных клеток */
             width: 96vw;
             max-width: 450px;
-            /* Вычисляем пропорциональную высоту на основе ширины и количества строк/колонок */
             height: calc(96vw * (var(--rows) / var(--cols)));
             max-height: calc(450px * (var(--rows) / var(--cols)));
             background-color: var(--board-bg);
@@ -192,7 +191,7 @@
             <div class="score-box">Очки: <span id="score">0</span></div>
             <div class="score-box" style="font-size:0.9rem; color:#94a3b8;">Рекорд: <span id="highscore">0</span></div>
             <div class="controls">
-                <button id="modeToggle" class="ui-btn" onclick="toggleMode()">Режим: 9x9</button>
+                <button id="modeToggle" class="ui-btn" onclick="toggleMode()">Режим</button>
                 <button id="soundToggle" class="ui-btn active" onclick="toggleSound()">Звук: ВКЛ</button>
             </div>
         </div>
@@ -214,7 +213,7 @@
     </div>
 
 <script>
-    // --- ЗВУКОВОЙ ДВИЖОК ---
+    // --- ПЕРЕДЕЛАННЫЙ ЗВУКОВОЙ ДВИЖОК ---
     let audioCtx;
     let isSoundEnabled = true;
 
@@ -237,7 +236,8 @@
         }
     }
 
-    function playTone(freq, type, duration, vol = 0.1, slideFreq = null) {
+    // Добавлен параметр delay (отложенный старт) для идеальной синхронизации
+    function playTone(freq, type, duration, vol = 0.1, slideFreq = null, delay = 0) {
         if (!isSoundEnabled || !audioCtx) return;
         try {
             const osc = audioCtx.createOscillator();
@@ -245,19 +245,26 @@
             osc.type = type;
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, audioCtx.currentTime + duration);
-            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration);
+            
+            // Задаем точное время старта в миллисекундах от текущего времени аудио-движка
+            const startTime = audioCtx.currentTime + delay;
+            
+            osc.frequency.setValueAtTime(freq, startTime);
+            if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, startTime + duration);
+            
+            gain.gain.setValueAtTime(vol, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+            
+            osc.start(startTime);
+            osc.stop(startTime + duration);
         } catch (e) {} 
     }
 
     const sfx = {
         select: () => playTone(600, 'sine', 0.1, 0.15, 800),
         error: () => playTone(150, 'sawtooth', 0.2, 0.1, 100),
-        step: () => playTone(1000, 'triangle', 0.05, 0.05),
+        // Звук шага: Низкий глухой звук (250 Гц падающий до 100 Гц), супер-короткий (20мс)
+        step: (delay = 0) => playTone(250, 'square', 0.02, 0.04, 100, delay),
         spawn: () => {
             setTimeout(() => playTone(400, 'sine', 0.15, 0.1, 200), 0);
             setTimeout(() => playTone(450, 'sine', 0.15, 0.1, 250), 100);
@@ -274,19 +281,18 @@
     };
 
 
-    // --- НАСТРОЙКИ РЕЖИМОВ (С ПОДДЕРЖКОЙ ПРЯМОУГОЛЬНИКОВ) ---
+    // --- НАСТРОЙКИ РЕЖИМОВ ---
     const MODES = [
-        { id: 'classic', cols: 9, rows: 9, colors: 7, winLine: 5, label: "Режим: 9x9" },
-        { id: 'mobile',  cols: 7, rows: 7, colors: 5, winLine: 4, label: "Режим: 7x7" },
-        { id: 'vertical',cols: 7, rows: 9, colors: 6, winLine: 4, label: "Режим: 7x9 Вытянутый" }
+        { id: 'classic', cols: 9, rows: 9, colors: 7, winLine: 5, label: "9x9 (Классика)" },
+        { id: 'mobile',  cols: 7, rows: 7, colors: 5, winLine: 4, label: "7x7 (Квадрат)" },
+        { id: 'vertical',cols: 7, rows: 9, colors: 6, winLine: 4, label: "7x9 (Вытянутый)" }
     ];
     
-    let currentModeIndex = 0;
+    // АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ТЕЛЕФОНА!
+    // Если ширина экрана меньше 600px, ставим индекс 2 (Вертикальный режим 7x9)
+    let currentModeIndex = window.innerWidth <= 600 ? 2 : 0;
     
-    let BOARD_COLS = MODES[currentModeIndex].cols;
-    let BOARD_ROWS = MODES[currentModeIndex].rows;
-    let COLORS_COUNT = MODES[currentModeIndex].colors;
-    let WIN_LINE = MODES[currentModeIndex].winLine;
+    let BOARD_COLS, BOARD_ROWS, COLORS_COUNT, WIN_LINE;
 
     let board = [];
     let score = 0;
@@ -295,6 +301,7 @@
         mobile: localStorage.getItem('lines-highscore-mobile') || 0,
         vertical: localStorage.getItem('lines-highscore-vertical') || 0
     };
+    
     let nextColors = [];
     let selectedCell = null;
     let isProcessing = false;
@@ -307,36 +314,36 @@
     const finalScoreEl = document.getElementById('final-score');
     const modeToggleBtn = document.getElementById('modeToggle');
 
-    // Переключение по кругу: 9x9 -> 7x7 -> 7x9
     function toggleMode() {
         if(isProcessing) return;
         currentModeIndex = (currentModeIndex + 1) % MODES.length;
-        const mode = MODES[currentModeIndex];
-        
-        BOARD_COLS = mode.cols;
-        BOARD_ROWS = mode.rows;
-        COLORS_COUNT = mode.colors;
-        WIN_LINE = mode.winLine;
-        
-        document.documentElement.style.setProperty('--cols', BOARD_COLS);
-        document.documentElement.style.setProperty('--rows', BOARD_ROWS);
-        
-        modeToggleBtn.innerText = mode.label;
-        if(mode.id !== 'classic') modeToggleBtn.classList.add('active');
-        else modeToggleBtn.classList.remove('active');
-
         initGame();
     }
 
     function initGame() {
         initAudio(); 
+        
+        // Применяем настройки выбранного режима
+        const mode = MODES[currentModeIndex];
+        BOARD_COLS = mode.cols;
+        BOARD_ROWS = mode.rows;
+        COLORS_COUNT = mode.colors;
+        WIN_LINE = mode.winLine;
+        
+        // Обновляем UI
+        document.documentElement.style.setProperty('--cols', BOARD_COLS);
+        document.documentElement.style.setProperty('--rows', BOARD_ROWS);
+        modeToggleBtn.innerText = mode.label;
+        if(mode.id !== 'classic') modeToggleBtn.classList.add('active');
+        else modeToggleBtn.classList.remove('active');
+
+        // Очищаем данные
         board = Array(BOARD_ROWS).fill().map(() => Array(BOARD_COLS).fill(null));
         score = 0;
         selectedCell = null;
         isProcessing = false;
         
-        const modeId = MODES[currentModeIndex].id;
-        highScoreEl.innerText = highScores[modeId];
+        highScoreEl.innerText = highScores[mode.id];
         gameOverEl.classList.remove('visible');
         updateScore();
         
@@ -439,7 +446,10 @@
             const STEP_DURATION = 50; 
             const duration = path.length * STEP_DURATION; 
 
-            let stepInterval = setInterval(() => { sfx.step(); }, STEP_DURATION);
+            // БЕЗ setInterval! Планируем точное время воспроизведения звука для каждой клетки (сдвиг в секундах)
+            for (let i = 0; i < path.length; i++) {
+                sfx.step(i * (STEP_DURATION / 1000));
+            }
 
             const animation = ghost.animate(keyframes, {
                 duration: duration,
@@ -448,7 +458,6 @@
             });
 
             animation.onfinish = () => {
-                clearInterval(stepInterval); 
                 ghost.remove();
                 resolve();
             };
@@ -457,7 +466,9 @@
 
     async function handleCellClick(r, c) {
         if (isProcessing) return;
-        initAudio(); 
+        
+        // Разблокировка звука при первом тапе
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); 
 
         if (board[r][c] !== null) {
             if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
@@ -635,6 +646,7 @@
         gameOverEl.classList.add('visible');
     }
 
+    // Запускаем игру!
     initGame();
 
 </script>
