@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Color Lines Modern</title>
+    <title>Color Lines Modern + Vertical Mode</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -11,6 +11,8 @@
             --cell-bg: #334155;
             --text-color: #f8fafc;
             --accent-color: #38bdf8;
+            --cols: 9;
+            --rows: 9;
         }
 
         body {
@@ -30,26 +32,45 @@
 
         header {
             width: 100%;
-            max-width: 400px;
-            padding: 15px;
+            max-width: 450px;
+            padding: 10px 15px;
             box-sizing: border-box;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .stats {
+        .stats-controls {
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 6px;
         }
 
-        .score-box {
-            font-size: 1.2rem;
-            font-weight: bold;
-        }
-
+        .score-box { font-size: 1.2rem; font-weight: bold; }
         .score-box span { color: var(--accent-color); }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        button.ui-btn {
+            background: var(--board-bg);
+            border: 1px solid #475569;
+            color: #94a3b8;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s;
+        }
+        button.ui-btn.active {
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+            background: rgba(56, 189, 248, 0.1);
+        }
 
         .next-colors {
             display: flex;
@@ -58,6 +79,7 @@
             padding: 10px;
             border-radius: 12px;
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+            height: fit-content;
         }
 
         .next-dot {
@@ -69,20 +91,23 @@
         }
 
         .board {
-            width: 95vw;
-            max-width: 400px;
-            height: 95vw;
-            max-height: 400px;
+            /* Ширина зависит от колонок, высота от строк */
+            width: 96vw;
+            max-width: 450px;
+            /* Вычисляем пропорциональную высоту на основе ширины и количества строк/колонок */
+            height: calc(96vw * (var(--rows) / var(--cols)));
+            max-height: calc(450px * (var(--rows) / var(--cols)));
             background-color: var(--board-bg);
             padding: 6px;
             border-radius: 12px;
             box-sizing: border-box;
             display: grid;
-            grid-template-columns: repeat(9, 1fr);
-            grid-template-rows: repeat(9, 1fr);
+            grid-template-columns: repeat(var(--cols), 1fr);
+            grid-template-rows: repeat(var(--rows), 1fr);
             gap: 4px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             position: relative;
+            margin-bottom: 20px;
         }
 
         .cell {
@@ -103,23 +128,14 @@
             box-shadow: 2px 4px 6px rgba(0,0,0,0.3), inset -4px -4px 8px rgba(0,0,0,0.3);
         }
 
-        /* Анимация появления только для НОВЫХ шаров */
-        .ball.popIn {
-            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-
-        /* Более плавный прыжок (0.6 сек) */
+        .ball.popIn { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         .ball.selected {
             animation: bounce 0.6s infinite alternate cubic-bezier(0.5, 0.05, 1, 0.5);
             box-shadow: 0 10px 15px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(0,0,0,0.3);
         }
-
-        .ball.popOut {
-            animation: popOut 0.3s forwards;
-        }
+        .ball.popOut { animation: popOut 0.3s forwards; }
 
         button.restart {
-            margin-top: 20px;
             padding: 12px 24px;
             font-size: 1.1rem;
             border: none;
@@ -129,12 +145,6 @@
             font-weight: bold;
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(56, 189, 248, 0.4);
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
-
-        button.restart:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 5px rgba(56, 189, 248, 0.4);
         }
 
         .color-0 { background: radial-gradient(circle at 30% 30%, #fca5a5, #ef4444, #991b1b); }
@@ -149,12 +159,10 @@
             from { transform: translateY(0) scale(1.05); }
             to { transform: translateY(-25%) scale(0.95); }
         }
-
         @keyframes popIn {
             from { transform: scale(0); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
         }
-
         @keyframes popOut {
             from { transform: scale(1); opacity: 1; }
             to { transform: scale(0); opacity: 0; }
@@ -173,19 +181,20 @@
             pointer-events: none;
             transition: opacity 0.3s;
         }
-        #game-over.visible {
-            opacity: 1;
-            pointer-events: auto;
-        }
+        #game-over.visible { opacity: 1; pointer-events: auto; }
         #game-over h2 { font-size: 2.5rem; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
     <header>
-        <div class="stats">
+        <div class="stats-controls">
             <div class="score-box">Очки: <span id="score">0</span></div>
             <div class="score-box" style="font-size:0.9rem; color:#94a3b8;">Рекорд: <span id="highscore">0</span></div>
+            <div class="controls">
+                <button id="modeToggle" class="ui-btn" onclick="toggleMode()">Режим: 9x9</button>
+                <button id="soundToggle" class="ui-btn active" onclick="toggleSound()">Звук: ВКЛ</button>
+            </div>
         </div>
         <div class="next-colors" id="next-colors">
             <div class="next-dot"></div>
@@ -205,13 +214,87 @@
     </div>
 
 <script>
-    const BOARD_SIZE = 9;
-    const COLORS_COUNT = 7;
-    const WIN_LINE = 5;
+    // --- ЗВУКОВОЙ ДВИЖОК ---
+    let audioCtx;
+    let isSoundEnabled = true;
+
+    function initAudio() {
+        if (!isSoundEnabled) return;
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function toggleSound() {
+        isSoundEnabled = !isSoundEnabled;
+        const btn = document.getElementById('soundToggle');
+        if (isSoundEnabled) {
+            btn.innerText = "Звук: ВКЛ";
+            btn.classList.add('active');
+            initAudio();
+        } else {
+            btn.innerText = "Звук: ВЫКЛ";
+            btn.classList.remove('active');
+        }
+    }
+
+    function playTone(freq, type, duration, vol = 0.1, slideFreq = null) {
+        if (!isSoundEnabled || !audioCtx) return;
+        try {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, audioCtx.currentTime + duration);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        } catch (e) {} 
+    }
+
+    const sfx = {
+        select: () => playTone(600, 'sine', 0.1, 0.15, 800),
+        error: () => playTone(150, 'sawtooth', 0.2, 0.1, 100),
+        step: () => playTone(1000, 'triangle', 0.05, 0.05),
+        spawn: () => {
+            setTimeout(() => playTone(400, 'sine', 0.15, 0.1, 200), 0);
+            setTimeout(() => playTone(450, 'sine', 0.15, 0.1, 250), 100);
+            setTimeout(() => playTone(500, 'sine', 0.15, 0.1, 300), 200);
+        },
+        clear: () => {
+            const notes = [440, 554, 659, 880];
+            notes.forEach((freq, i) => setTimeout(() => playTone(freq, 'square', 0.15, 0.05), i * 80));
+        },
+        gameOver: () => {
+            const notes = [440, 415, 392, 349, 330];
+            notes.forEach((freq, i) => setTimeout(() => playTone(freq, 'sawtooth', 0.3, 0.1), i * 300));
+        }
+    };
+
+
+    // --- НАСТРОЙКИ РЕЖИМОВ (С ПОДДЕРЖКОЙ ПРЯМОУГОЛЬНИКОВ) ---
+    const MODES = [
+        { id: 'classic', cols: 9, rows: 9, colors: 7, winLine: 5, label: "Режим: 9x9" },
+        { id: 'mobile',  cols: 7, rows: 7, colors: 5, winLine: 4, label: "Режим: 7x7" },
+        { id: 'vertical',cols: 7, rows: 9, colors: 6, winLine: 4, label: "Режим: 7x9 Вытянутый" }
+    ];
+    
+    let currentModeIndex = 0;
+    
+    let BOARD_COLS = MODES[currentModeIndex].cols;
+    let BOARD_ROWS = MODES[currentModeIndex].rows;
+    let COLORS_COUNT = MODES[currentModeIndex].colors;
+    let WIN_LINE = MODES[currentModeIndex].winLine;
 
     let board = [];
     let score = 0;
-    let highScore = localStorage.getItem('lines-high-score') || 0;
+    let highScores = {
+        classic: localStorage.getItem('lines-highscore-classic') || 0,
+        mobile: localStorage.getItem('lines-highscore-mobile') || 0,
+        vertical: localStorage.getItem('lines-highscore-vertical') || 0
+    };
     let nextColors = [];
     let selectedCell = null;
     let isProcessing = false;
@@ -222,29 +305,50 @@
     const nextColorsEl = document.getElementById('next-colors');
     const gameOverEl = document.getElementById('game-over');
     const finalScoreEl = document.getElementById('final-score');
+    const modeToggleBtn = document.getElementById('modeToggle');
+
+    // Переключение по кругу: 9x9 -> 7x7 -> 7x9
+    function toggleMode() {
+        if(isProcessing) return;
+        currentModeIndex = (currentModeIndex + 1) % MODES.length;
+        const mode = MODES[currentModeIndex];
+        
+        BOARD_COLS = mode.cols;
+        BOARD_ROWS = mode.rows;
+        COLORS_COUNT = mode.colors;
+        WIN_LINE = mode.winLine;
+        
+        document.documentElement.style.setProperty('--cols', BOARD_COLS);
+        document.documentElement.style.setProperty('--rows', BOARD_ROWS);
+        
+        modeToggleBtn.innerText = mode.label;
+        if(mode.id !== 'classic') modeToggleBtn.classList.add('active');
+        else modeToggleBtn.classList.remove('active');
+
+        initGame();
+    }
 
     function initGame() {
-        board = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null));
+        initAudio(); 
+        board = Array(BOARD_ROWS).fill().map(() => Array(BOARD_COLS).fill(null));
         score = 0;
         selectedCell = null;
         isProcessing = false;
         
-        highScoreEl.innerText = highScore;
+        const modeId = MODES[currentModeIndex].id;
+        highScoreEl.innerText = highScores[modeId];
         gameOverEl.classList.remove('visible');
         updateScore();
         
-        // Создаем клетки поля один раз, а не при каждом клике!
         createBoardDOM();
-        
         generateNextColors();
         spawnBalls(5);
     }
 
-    // Одноразовая генерация DOM-элементов сетки
     function createBoardDOM() {
         boardEl.innerHTML = '';
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
+        for (let r = 0; r < BOARD_ROWS; r++) {
+            for (let c = 0; c < BOARD_COLS; c++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
                 cell.id = `cell-${r}-${c}`;
@@ -271,41 +375,31 @@
         });
     }
 
-    // Умная перерисовка: обновляет только содержимое клеток
     function renderBoard(spawnedCells = []) {
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
+        for (let r = 0; r < BOARD_ROWS; r++) {
+            for (let c = 0; c < BOARD_COLS; c++) {
                 const cell = document.getElementById(`cell-${r}-${c}`);
                 const color = board[r][c];
                 let ball = cell.querySelector('.ball');
 
                 if (color !== null) {
                     if (!ball) {
-                        // Создаем шарик, если его тут не было
                         ball = document.createElement('div');
                         ball.className = `ball color-${color}`;
                         
-                        // Анимация появления только для сгенерированных новых шаров
                         const isSpawned = spawnedCells.some(sc => sc.r === r && sc.c === c);
-                        if (isSpawned) {
-                            ball.classList.add('popIn');
-                        }
+                        if (isSpawned) ball.classList.add('popIn');
                         
                         cell.appendChild(ball);
                     } else {
-                        // Если шарик уже тут, просто следим за его цветом и убираем ненужные классы
                         ball.className = `ball color-${color}`;
                     }
 
-                    // Добавляем класс выделения, если нужно
                     if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
                         ball.classList.add('selected');
                     }
                 } else {
-                    // Удаляем шарик, если в массиве пусто
-                    if (ball) {
-                        cell.removeChild(ball);
-                    }
+                    if (ball) cell.removeChild(ball);
                 }
             }
         }
@@ -342,7 +436,10 @@
             ghost.style.width = keyframes[0].width;
             ghost.style.height = keyframes[0].height;
 
-            const duration = path.length * 50; 
+            const STEP_DURATION = 50; 
+            const duration = path.length * STEP_DURATION; 
+
+            let stepInterval = setInterval(() => { sfx.step(); }, STEP_DURATION);
 
             const animation = ghost.animate(keyframes, {
                 duration: duration,
@@ -351,6 +448,7 @@
             });
 
             animation.onfinish = () => {
+                clearInterval(stepInterval); 
                 ghost.remove();
                 resolve();
             };
@@ -359,19 +457,19 @@
 
     async function handleCellClick(r, c) {
         if (isProcessing) return;
+        initAudio(); 
 
-        // Клик по шарику
         if (board[r][c] !== null) {
             if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
                 selectedCell = null;
             } else {
                 selectedCell = { r, c };
+                sfx.select(); 
             }
-            renderBoard(); // Обновит только класс .selected
+            renderBoard();
             return;
         }
 
-        // Клик по пустой клетке, если шарик выбран
         if (selectedCell && board[r][c] === null) {
             const path = findPath(selectedCell.r, selectedCell.c, r, c);
             
@@ -379,19 +477,15 @@
                 isProcessing = true;
                 const color = board[selectedCell.r][selectedCell.c];
                 
-                // 1. Убираем шарик
                 board[selectedCell.r][selectedCell.c] = null;
                 selectedCell = null;
-                renderBoard(); // Шарик исчезнет
+                renderBoard();
 
-                // 2. Анимация
                 await animateMovement(path, color);
 
-                // 3. Ставим шарик на новое место
                 board[r][c] = color;
-                renderBoard(); // Шарик появится без вспышки popIn
+                renderBoard();
 
-                // 4. Проверяем линии
                 let cleared = await checkAndClearLines();
                 
                 if (cleared === 0) {
@@ -405,7 +499,7 @@
                 }
                 isProcessing = false;
             } else {
-                // Пути нет
+                sfx.error(); 
                 selectedCell = null;
                 renderBoard();
             }
@@ -414,7 +508,7 @@
 
     function findPath(r1, c1, r2, c2) {
         let queue = [{r: r1, c: c1, path: [{r: r1, c: c1}]}];
-        let visited = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(false));
+        let visited = Array(BOARD_ROWS).fill().map(() => Array(BOARD_COLS).fill(false));
         visited[r1][c1] = true;
 
         const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
@@ -428,14 +522,10 @@
                 let nr = curr.r + d[0];
                 let nc = curr.c + d[1];
 
-                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                if (nr >= 0 && nr < BOARD_ROWS && nc >= 0 && nc < BOARD_COLS) {
                     if (!visited[nr][nc] && board[nr][nc] === null) {
                         visited[nr][nc] = true;
-                        queue.push({
-                            r: nr, 
-                            c: nc, 
-                            path: [...curr.path, {r: nr, c: nc}]
-                        });
+                        queue.push({ r: nr, c: nc, path: [...curr.path, {r: nr, c: nc}] });
                     }
                 }
             }
@@ -447,6 +537,8 @@
         let emptyCells = getEmptyCells();
         let spawnedCells = [];
 
+        if (count === 3 && emptyCells.length > 0) sfx.spawn(); 
+
         for (let i = 0; i < count; i++) {
             if (emptyCells.length === 0) break;
             
@@ -455,17 +547,16 @@
             
             let color = useNextColors ? nextColors[i] : Math.floor(Math.random() * COLORS_COUNT);
             board[cell.r][cell.c] = color;
-            spawnedCells.push(cell); // Запоминаем новые шарики
+            spawnedCells.push(cell);
         }
         
-        // Перерисовываем с указанием тех, кому нужна анимация появления
         renderBoard(spawnedCells);
     }
 
     function getEmptyCells() {
         let empty = [];
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
+        for (let r = 0; r < BOARD_ROWS; r++) {
+            for (let c = 0; c < BOARD_COLS; c++) {
                 if (board[r][c] === null) empty.push({r, c});
             }
         }
@@ -482,7 +573,7 @@
             let line = [[r, c]];
             let nr = r + dr, nc = c + dc;
             
-            while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === color) {
+            while (nr >= 0 && nr < BOARD_ROWS && nc >= 0 && nc < BOARD_COLS && board[nr][nc] === color) {
                 line.push([nr, nc]);
                 nr += dr; nc += dc;
             }
@@ -492,8 +583,8 @@
             }
         }
 
-        for(let r = 0; r < BOARD_SIZE; r++) {
-            for(let c = 0; c < BOARD_SIZE; c++) {
+        for(let r = 0; r < BOARD_ROWS; r++) {
+            for(let c = 0; c < BOARD_COLS; c++) {
                 checkDirection(r, c, 0, 1);
                 checkDirection(r, c, 1, 0);
                 checkDirection(r, c, 1, 1);
@@ -502,6 +593,8 @@
         }
 
         if (toClear.size > 0) {
+            sfx.clear(); 
+            
             let count = toClear.size;
             let points = count * 2 + (count - WIN_LINE) * 4;
             score += points;
@@ -527,15 +620,17 @@
     }
 
     function updateScore() {
+        const modeId = MODES[currentModeIndex].id;
         scoreEl.innerText = score;
-        if (score > highScore) {
-            highScore = score;
-            highScoreEl.innerText = highScore;
-            localStorage.setItem('lines-high-score', highScore);
+        if (score > highScores[modeId]) {
+            highScores[modeId] = score;
+            localStorage.setItem(`lines-highscore-${modeId}`, score);
         }
+        highScoreEl.innerText = highScores[modeId];
     }
 
     function endGame() {
+        sfx.gameOver(); 
         finalScoreEl.innerText = score;
         gameOverEl.classList.add('visible');
     }
