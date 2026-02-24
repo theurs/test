@@ -91,7 +91,6 @@
         }
 
         .board {
-            /* Поддержка прямоугольного поля с сохранением квадратных клеток */
             width: 96vw;
             max-width: 450px;
             height: calc(96vw * (var(--rows) / var(--cols)));
@@ -124,13 +123,13 @@
             width: 80%;
             height: 80%;
             border-radius: 50%;
-            box-shadow: 2px 4px 6px rgba(0,0,0,0.3), inset -4px -4px 8px rgba(0,0,0,0.3);
+            box-shadow: 2px 4px 6px rgba(0,0,0,0.3), inset -4px -4px 8px rgba(0,0,0,0.5);
         }
 
         .ball.popIn { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         .ball.selected {
             animation: bounce 0.6s infinite alternate cubic-bezier(0.5, 0.05, 1, 0.5);
-            box-shadow: 0 10px 15px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(0,0,0,0.4);
         }
         .ball.popOut { animation: popOut 0.3s forwards; }
 
@@ -146,13 +145,29 @@
             box-shadow: 0 4px 10px rgba(56, 189, 248, 0.4);
         }
 
-        .color-0 { background: radial-gradient(circle at 30% 30%, #fca5a5, #ef4444, #991b1b); }
-        .color-1 { background: radial-gradient(circle at 30% 30%, #93c5fd, #3b82f6, #1e3a8a); }
-        .color-2 { background: radial-gradient(circle at 30% 30%, #6ee7b7, #10b981, #064e3b); }
-        .color-3 { background: radial-gradient(circle at 30% 30%, #fde047, #eab308, #713f12); }
-        .color-4 { background: radial-gradient(circle at 30% 30%, #d8b4fe, #a855f7, #4c1d95); }
-        .color-5 { background: radial-gradient(circle at 30% 30%, #67e8f9, #06b6d4, #164e63); }
-        .color-6 { background: radial-gradient(circle at 30% 30%, #fdba74, #f97316, #7c2d12); }
+        /* --- СОЧНЫЕ КЛАССИЧЕСКИЕ ЦВЕТА БЕЗ СИМВОЛОВ --- */
+        
+        /* 0. Рубиновый (Красный) */
+        .color-0 { background: radial-gradient(circle at 35% 35%, #ff8888, #cc0000, #4d0000); }
+
+        /* 1. Сапфировый (Синий) */
+        .color-1 { background: radial-gradient(circle at 35% 35%, #88aaff, #0033cc, #00114d); }
+
+        /* 2. Изумрудный (Зеленый) */
+        .color-2 { background: radial-gradient(circle at 35% 35%, #88ffaa, #009933, #003311); }
+
+        /* 3. Золотой (Желтый) */
+        .color-3 { background: radial-gradient(circle at 35% 35%, #ffffaa, #ffcc00, #665200); }
+
+        /* 4. Аметистовый (Фиолетовый) */
+        .color-4 { background: radial-gradient(circle at 35% 35%, #e688ff, #7300e6, #26004d); }
+
+        /* 5. Бирюзовый (Голубой) */
+        .color-5 { background: radial-gradient(circle at 35% 35%, #b3ffff, #00cccc, #004d4d); }
+
+        /* 6. Жемчужный (Серый/Белый) */
+        .color-6 { background: radial-gradient(circle at 35% 35%, #ffffff, #e6e6e6, #666666); }
+
 
         @keyframes bounce {
             from { transform: translateY(0) scale(1.05); }
@@ -213,7 +228,6 @@
     </div>
 
 <script>
-    // --- ПЕРЕДЕЛАННЫЙ ЗВУКОВОЙ ДВИЖОК ---
     let audioCtx;
     let isSoundEnabled = true;
 
@@ -236,7 +250,6 @@
         }
     }
 
-    // Добавлен параметр delay (отложенный старт) для идеальной синхронизации
     function playTone(freq, type, duration, vol = 0.1, slideFreq = null, delay = 0) {
         if (!isSoundEnabled || !audioCtx) return;
         try {
@@ -246,7 +259,6 @@
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             
-            // Задаем точное время старта в миллисекундах от текущего времени аудио-движка
             const startTime = audioCtx.currentTime + delay;
             
             osc.frequency.setValueAtTime(freq, startTime);
@@ -263,7 +275,6 @@
     const sfx = {
         select: () => playTone(600, 'sine', 0.1, 0.15, 800),
         error: () => playTone(150, 'sawtooth', 0.2, 0.1, 100),
-        // Звук шага: Низкий глухой звук (250 Гц падающий до 100 Гц), супер-короткий (20мс)
         step: (delay = 0) => playTone(250, 'square', 0.02, 0.04, 100, delay),
         spawn: () => {
             setTimeout(() => playTone(400, 'sine', 0.15, 0.1, 200), 0);
@@ -280,20 +291,15 @@
         }
     };
 
-
-    // --- НАСТРОЙКИ РЕЖИМОВ ---
     const MODES = [
         { id: 'classic', cols: 9, rows: 9, colors: 7, winLine: 5, label: "9x9 (Классика)" },
         { id: 'mobile',  cols: 7, rows: 7, colors: 5, winLine: 4, label: "7x7 (Квадрат)" },
         { id: 'vertical',cols: 7, rows: 9, colors: 6, winLine: 4, label: "7x9 (Вытянутый)" }
     ];
     
-    // АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ТЕЛЕФОНА!
-    // Если ширина экрана меньше 600px, ставим индекс 2 (Вертикальный режим 7x9)
     let currentModeIndex = window.innerWidth <= 600 ? 2 : 0;
     
     let BOARD_COLS, BOARD_ROWS, COLORS_COUNT, WIN_LINE;
-
     let board = [];
     let score = 0;
     let highScores = {
@@ -323,21 +329,18 @@
     function initGame() {
         initAudio(); 
         
-        // Применяем настройки выбранного режима
         const mode = MODES[currentModeIndex];
         BOARD_COLS = mode.cols;
         BOARD_ROWS = mode.rows;
         COLORS_COUNT = mode.colors;
         WIN_LINE = mode.winLine;
         
-        // Обновляем UI
         document.documentElement.style.setProperty('--cols', BOARD_COLS);
         document.documentElement.style.setProperty('--rows', BOARD_ROWS);
         modeToggleBtn.innerText = mode.label;
         if(mode.id !== 'classic') modeToggleBtn.classList.add('active');
         else modeToggleBtn.classList.remove('active');
 
-        // Очищаем данные
         board = Array(BOARD_ROWS).fill().map(() => Array(BOARD_COLS).fill(null));
         score = 0;
         selectedCell = null;
@@ -393,18 +396,13 @@
                     if (!ball) {
                         ball = document.createElement('div');
                         ball.className = `ball color-${color}`;
-                        
-                        const isSpawned = spawnedCells.some(sc => sc.r === r && sc.c === c);
-                        if (isSpawned) ball.classList.add('popIn');
-                        
+                        if (spawnedCells.some(sc => sc.r === r && sc.c === c)) ball.classList.add('popIn');
                         cell.appendChild(ball);
                     } else {
                         ball.className = `ball color-${color}`;
                     }
 
-                    if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
-                        ball.classList.add('selected');
-                    }
+                    if (selectedCell && selectedCell.r === r && selectedCell.c === c) ball.classList.add('selected');
                 } else {
                     if (ball) cell.removeChild(ball);
                 }
@@ -446,7 +444,6 @@
             const STEP_DURATION = 50; 
             const duration = path.length * STEP_DURATION; 
 
-            // БЕЗ setInterval! Планируем точное время воспроизведения звука для каждой клетки (сдвиг в секундах)
             for (let i = 0; i < path.length; i++) {
                 sfx.step(i * (STEP_DURATION / 1000));
             }
@@ -466,8 +463,6 @@
 
     async function handleCellClick(r, c) {
         if (isProcessing) return;
-        
-        // Разблокировка звука при первом тапе
         if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); 
 
         if (board[r][c] !== null) {
@@ -646,7 +641,6 @@
         gameOverEl.classList.add('visible');
     }
 
-    // Запускаем игру!
     initGame();
 
 </script>
