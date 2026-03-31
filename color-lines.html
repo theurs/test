@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Color Lines</title>
+<style>
+/* === THEME === */
+:root {
+  --bg:      #0f172a;
+  --surface: #1e293b;
+  --cell:    #334155;
+  --text:    #f8fafc;
+  --muted:   #94a3b8;
+  --accent:  #38bdf8;
+  --cols: 9;
+  --rows: 9;
+}
+
+/* === BASE === */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  touch-action: manipulation;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* === HEADER === */
+header {
+  width: 100%;
+  max-width: 450px;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stats { display: flex; flex-direction: column; gap: 6px; }
+.score { font-size: 1.2rem; font-weight: bold; }
+.score span { color: var(--accent); }
+.hi    { font-size: 0.9rem; color: var(--muted); }
+.hi span { color: var(--accent); }
+
+.controls { display: flex; gap: 8px; margin-top: 2px; }
+
+.btn {
+  background: var(--surface);
+  border: 1px solid #475569;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn.on { color: var(--accent); border-color: var(--accent); background: rgba(56,189,248,.1); }
+
+/* === NEXT PREVIEW === */
+.next {
+  display: flex;
+  gap: 8px;
+  background: var(--surface);
+  padding: 10px;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.3);
+}
+
+/* === BOARD === */
+.board {
+  width: 96vw;
+  max-width: 450px;
+  aspect-ratio: var(--cols) / var(--rows);
+  max-height: calc(450px * var(--rows) / var(--cols));
+  background: var(--surface);
+  padding: 6px;
+  border-radius: 12px;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-rows:    repeat(var(--rows), 1fr);
+  gap: 4px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.5);
+  margin-bottom: 20px;
+}
+
+/* === CELL & BALL === */
+.cell {
+  background: var(--cell);
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.2);
+}
+
+.ball {
+  width: 80%; height: 80%;
+  border-radius: 50%;
+  background: var(--ball-color);
+  box-shadow: 2px 4px 6px rgba(0,0,0,.3), inset -4px -4px 8px rgba(0,0,0,.5);
+}
+.ball.spawn    { animation: popIn  .3s cubic-bezier(.175,.885,.32,1.275) forwards; }
+.ball.selected { animation: bounce .6s infinite alternate cubic-bezier(.5,.05,1,.5);
+                 box-shadow: 0 10px 15px rgba(0,0,0,.5), inset -4px -4px 8px rgba(0,0,0,.4); }
+.ball.remove   { animation: popOut .3s forwards; }
+
+/* Ball is a ghost for movement animation */
+.ghost {
+  position: fixed;
+  z-index: 1000;
+  border-radius: 50%;
+  pointer-events: none;
+  background: var(--ball-color);
+  box-shadow: 2px 4px 6px rgba(0,0,0,.3), inset -4px -4px 8px rgba(0,0,0,.5);
+}
+
+@keyframes bounce { from { transform: translateY(0)   scale(1.05); }
+                    to   { transform: translateY(-25%) scale(0.95); } }
+@keyframes popIn  { from { transform: scale(0); opacity: 0; }
+                    to   { transform: scale(1); opacity: 1; } }
+@keyframes popOut { from { transform: scale(1); opacity: 1; }
+                    to   { transform: scale(0); opacity: 0; } }
+
+/* === RESTART === */
+.restart {
+  padding: 12px 24px;
+  font-size: 1.1rem;
+  border: none;
+  border-radius: 25px;
+  background: var(--accent);
+  color: #0f172a;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(56,189,248,.4);
+}
+
+/* === GAME OVER === */
+#overlay {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,.9);
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+#overlay.show { opacity: 1; pointer-events: auto; }
+#overlay h2   { font-size: 2.5rem; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="stats">
+    <div class="score">Очки: <span id="score">0</span></div>
+    <div class="hi">Рекорд: <span id="hi">0</span></div>
+    <div class="controls">
+      <button id="modeBtn"  class="btn"    onclick="cycleMode()">Режим</button>
+      <button id="soundBtn" class="btn on" onclick="toggleSound()">Звук: ВКЛ</button>
+    </div>
+  </div>
+  <div class="next" id="next"></div>
+</header>
+
+<div class="board" id="board"></div>
+<button class="restart" onclick="init()">Начать заново</button>
+
+<div id="overlay">
+  <h2>Игра окончена!</h2>
+  <p class="score" style="font-size:1.5rem;margin-bottom:20px">Счёт: <span id="finalScore">0</span></p>
+  <button class="restart" onclick="init()">Сыграть ещё</button>
+</div>
+
+<script>
+// === CONFIG ===
+
+const MODES = [
+  { id: 'classic',  cols: 9, rows: 9, colors: 7, line: 5, label: '9×9 Классика' },
+  { id: 'mobile',   cols: 7, rows: 7, colors: 5, line: 4, label: '7×7 Мини'     },
+  { id: 'vertical', cols: 7, rows: 9, colors: 6, line: 4, label: '7×9 Высокий'  },
+];
+
+// Each color defined as [highlight, mid, shadow] for radial-gradient
+const COLORS = [
+  ['#ff8888', '#cc0000', '#4d0000'],  // 0 ruby
+  ['#88aaff', '#0033cc', '#00114d'],  // 1 sapphire
+  ['#88ffaa', '#009933', '#003311'],  // 2 emerald
+  ['#ffffaa', '#ffcc00', '#665200'],  // 3 gold
+  ['#e688ff', '#7300e6', '#26004d'],  // 4 amethyst
+  ['#b3ffff', '#00cccc', '#004d4d'],  // 5 cyan
+  ['#ffffff',  '#e6e6e6', '#666666'], // 6 pearl
+];
+
+function ballGradient(i) {
+  const [h, m, s] = COLORS[i];
+  return `radial-gradient(circle at 35% 35%, ${h}, ${m}, ${s})`;
+}
+
+// === STATE ===
+
+let modeIndex = window.innerWidth <= 600 ? 2 : 0;
+let M;          // current mode object
+let grid;       // 2D array of color indices (null = empty)
+let score;
+let nextColors; // 3 upcoming colors
+let selected;   // { r, c } or null
+let busy;       // true while animating
+
+const hi = {
+  classic:  +(localStorage.getItem('hi-classic')  || 0),
+  mobile:   +(localStorage.getItem('hi-mobile')   || 0),
+  vertical: +(localStorage.getItem('hi-vertical') || 0),
+};
+
+// === DOM REFS ===
+
+const $board      = document.getElementById('board');
+const $score      = document.getElementById('score');
+const $hi         = document.getElementById('hi');
+const $next       = document.getElementById('next');
+const $overlay    = document.getElementById('overlay');
+const $finalScore = document.getElementById('finalScore');
+const $modeBtn    = document.getElementById('modeBtn');
+const $soundBtn   = document.getElementById('soundBtn');
+
+// === AUDIO ===
+
+let ctx;
+let soundOn = true;
+
+function toggleSound() {
+  soundOn = !soundOn;
+  $soundBtn.textContent = soundOn ? 'Звук: ВКЛ' : 'Звук: ВЫКЛ';
+  $soundBtn.classList.toggle('on', soundOn);
+  if (soundOn) resumeCtx();
+}
+
+function resumeCtx() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === 'suspended') ctx.resume();
+}
+
+function tone(freq, type, dur, vol = 0.1, endFreq = null, delay = 0) {
+  if (!soundOn || !ctx) return;
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  const t = ctx.currentTime + delay;
+  osc.frequency.setValueAtTime(freq, t);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + dur);
+  osc.start(t);
+  osc.stop(t + dur);
+}
+
+const sfx = {
+  select:  () => tone(600, 'sine',     0.1, 0.15, 800),
+  error:   () => tone(150, 'sawtooth', 0.2, 0.1,  100),
+  step:  d => tone(250, 'square',   0.02, 0.04, 100, d),
+  spawn:   () => [400, 450, 500].forEach((f, i) => setTimeout(() => tone(f, 'sine', 0.15, 0.1, f - 200), i * 100)),
+  clear:   () => [440, 554, 659, 880].forEach((f, i) => setTimeout(() => tone(f, 'square', 0.15, 0.05), i * 80)),
+  gameOver:() => [440,415,392,349,330].forEach((f, i) => setTimeout(() => tone(f, 'sawtooth', 0.3, 0.1), i * 300)),
+};
+
+// === INIT ===
+
+function init() {
+  resumeCtx();
+  M = MODES[modeIndex];
+
+  document.documentElement.style.setProperty('--cols', M.cols);
+  document.documentElement.style.setProperty('--rows', M.rows);
+  $modeBtn.textContent = M.label;
+  $modeBtn.classList.toggle('on', M.id !== 'classic');
+
+  grid     = Array.from({ length: M.rows }, () => Array(M.cols).fill(null));
+  score    = 0;
+  selected = null;
+  busy     = false;
+
+  $overlay.classList.remove('show');
+  $hi.textContent = hi[M.id];
+  renderScore();
+  buildBoard();
+  pickNextColors();
+  spawn(5);
+}
+
+function cycleMode() {
+  if (busy) return;
+  modeIndex = (modeIndex + 1) % MODES.length;
+  init();
+}
+
+// === BOARD DOM ===
+
+function buildBoard() {
+  $board.innerHTML = '';
+  for (let r = 0; r < M.rows; r++)
+    for (let c = 0; c < M.cols; c++) {
+      const div = document.createElement('div');
+      div.className = 'cell';
+      div.id = `c${r}_${c}`;
+      div.onclick = () => onCell(r, c);
+      $board.appendChild(div);
+    }
+}
+
+function cell(r, c) { return document.getElementById(`c${r}_${c}`); }
+
+function renderCell(r, c, animClass = '') {
+  const el  = cell(r, c);
+  const col = grid[r][c];
+  let ball  = el.querySelector('.ball');
+
+  if (col === null) {
+    ball?.remove();
+    return;
+  }
+
+  if (!ball) {
+    ball = document.createElement('div');
+    el.appendChild(ball);
+  }
+  ball.className = 'ball' + (animClass ? ' ' + animClass : '');
+  ball.style.setProperty('--ball-color', ballGradient(col));
+
+  const isSel = selected && selected.r === r && selected.c === c;
+  if (isSel) ball.classList.add('selected');
+}
+
+function renderAll(spawned = []) {
+  for (let r = 0; r < M.rows; r++)
+    for (let c = 0; c < M.cols; c++) {
+      const anim = spawned.some(s => s.r === r && s.c === c) ? 'spawn' : '';
+      renderCell(r, c, anim);
+    }
+}
+
+// === NEXT COLORS UI ===
+
+function pickNextColors() {
+  nextColors = Array.from({ length: 3 }, () => randInt(M.colors));
+  renderNext();
+}
+
+function renderNext() {
+  $next.innerHTML = '';
+  nextColors.forEach(i => {
+    const d = document.createElement('div');
+    d.style.cssText = `width:16px;height:16px;border-radius:50%;background:${ballGradient(i)};box-shadow:inset -2px -2px 6px rgba(0,0,0,.4)`;
+    $next.appendChild(d);
+  });
+}
+
+// === CLICK HANDLER ===
+
+async function onCell(r, c) {
+  if (busy) return;
+  resumeCtx();
+
+  // Click on a ball → select / deselect
+  if (grid[r][c] !== null) {
+    selected = (selected?.r === r && selected?.c === c) ? null : { r, c };
+    selected && sfx.select();
+    renderAll();
+    return;
+  }
+
+  // Click on empty with nothing selected → ignore
+  if (!selected) return;
+
+  // Try to move
+  const path = bfs(selected.r, selected.c, r, c);
+  if (!path) { sfx.error(); selected = null; renderAll(); return; }
+
+  busy = true;
+  const color = grid[selected.r][selected.c];
+  grid[selected.r][selected.c] = null;
+  selected = null;
+  renderAll();
+
+  await animatePath(path, color);
+
+  grid[r][c] = color;
+  renderAll();
+
+  const cleared = await clearLines();
+  if (!cleared) {
+    spawn(3);
+    pickNextColors();
+    await clearLines();
+  }
+
+  if (emptyCells().length === 0) { endGame(); return; }
+  busy = false;
+}
+
+// === PATHFINDING (BFS) ===
+
+function bfs(r1, c1, r2, c2) {
+  const visited = Array.from({ length: M.rows }, () => Array(M.cols).fill(false));
+  const queue   = [{ r: r1, c: c1, path: [{ r: r1, c: c1 }] }];
+  visited[r1][c1] = true;
+
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+
+  while (queue.length) {
+    const { r, c, path } = queue.shift();
+    if (r === r2 && c === c2) return path;
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < M.rows && nc >= 0 && nc < M.cols && !visited[nr][nc] && grid[nr][nc] === null) {
+        visited[nr][nc] = true;
+        queue.push({ r: nr, c: nc, path: [...path, { r: nr, c: nc }] });
+      }
+    }
+  }
+  return null;
+}
+
+// === MOVEMENT ANIMATION ===
+
+function animatePath(path, color) {
+  return new Promise(resolve => {
+    const ghost = document.createElement('div');
+    ghost.className = 'ghost';
+    ghost.style.setProperty('--ball-color', ballGradient(color));
+    ghost.style.position = 'fixed';
+    ghost.style.margin   = '0';
+    document.body.appendChild(ghost);
+
+    const STEP_MS = 50;
+
+    // Use left/top directly — no transform offset issues
+    const keyframes = path.map(({ r, c }) => {
+      const rect = cell(r, c).getBoundingClientRect();
+      return {
+        left:   `${rect.left   + rect.width  * .1}px`,
+        top:    `${rect.top    + rect.height * .1}px`,
+        width:  `${rect.width  * .8}px`,
+        height: `${rect.height * .8}px`,
+      };
+    });
+
+    // Set initial position before animation starts
+    Object.assign(ghost.style, keyframes[0]);
+
+    path.forEach((_, i) => sfx.step(i * STEP_MS / 1000));
+
+    ghost.animate(keyframes, { duration: path.length * STEP_MS, easing: 'linear', fill: 'forwards' })
+         .onfinish = () => { ghost.remove(); resolve(); };
+  });
+}
+
+// === SPAWN ===
+
+function spawn(count) {
+  const empty = emptyCells();
+  const spawned = [];
+
+  if (count === 3 && empty.length) sfx.spawn();
+
+  for (let i = 0; i < count && empty.length; i++) {
+    const idx  = randInt(empty.length);
+    const { r, c } = empty.splice(idx, 1)[0];
+    grid[r][c] = nextColors[i] ?? randInt(M.colors);
+    spawned.push({ r, c });
+  }
+  renderAll(spawned);
+}
+
+// === LINE CLEARING ===
+
+async function clearLines() {
+  const DIRS = [[0,1],[1,0],[1,1],[1,-1]];
+  const mark = new Set();
+
+  for (let r = 0; r < M.rows; r++)
+    for (let c = 0; c < M.cols; c++) {
+      const col = grid[r][c];
+      if (col === null) continue;
+
+      for (const [dr, dc] of DIRS) {
+        const line = [[r, c]];
+        let nr = r + dr, nc = c + dc;
+        while (nr >= 0 && nr < M.rows && nc >= 0 && nc < M.cols && grid[nr][nc] === col) {
+          line.push([nr, nc]);
+          nr += dr; nc += dc;
+        }
+        if (line.length >= M.line) line.forEach(([lr, lc]) => mark.add(`${lr},${lc}`));
+      }
+    }
+
+  if (!mark.size) return 0;
+
+  sfx.clear();
+  score += mark.size * 2 + (mark.size - M.line) * 4;
+  renderScore();
+
+  mark.forEach(key => {
+    const [r, c] = key.split(',').map(Number);
+    cell(r, c).querySelector('.ball')?.classList.add('remove');
+  });
+
+  await delay(300);
+
+  mark.forEach(key => {
+    const [r, c] = key.split(',').map(Number);
+    grid[r][c] = null;
+  });
+  renderAll();
+
+  return mark.size;
+}
+
+// === SCORE ===
+
+function renderScore() {
+  $score.textContent = score;
+  if (score > hi[M.id]) {
+    hi[M.id] = score;
+    localStorage.setItem(`hi-${M.id}`, score);
+  }
+  $hi.textContent = hi[M.id];
+}
+
+// === GAME OVER ===
+
+function endGame() {
+  sfx.gameOver();
+  $finalScore.textContent = score;
+  $overlay.classList.add('show');
+}
+
+// === HELPERS ===
+
+function emptyCells() {
+  const res = [];
+  for (let r = 0; r < M.rows; r++)
+    for (let c = 0; c < M.cols; c++)
+      if (grid[r][c] === null) res.push({ r, c });
+  return res;
+}
+
+function randInt(n) { return Math.floor(Math.random() * n); }
+function delay(ms)  { return new Promise(r => setTimeout(r, ms)); }
+
+// === START ===
+init();
+</script>
+</body>
+</html>
