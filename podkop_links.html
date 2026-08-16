@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cacao to Podkop Converter</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --card-hover: #334155;
+            --primary: #38bdf8;
+            --primary-hover: #0ea5e9;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #475569;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #0f172a;
+            border-color: var(--primary);
+            font-weight: bold;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            padding: 12px;
+            font-size: 0.95rem;
+            font-family: monospace;
+        }
+
+        textarea {
+            height: 110px;
+            resize: vertical;
+        }
+
+        input:focus, textarea:focus {
+            outline: 2px solid var(--primary);
+        }
+
+        button.main-btn {
+            background: var(--primary);
+            color: #0f172a;
+            font-weight: bold;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+
+        button.main-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Debug Box */
+        .debug-box {
+            background: #020617;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            max-height: 180px;
+            overflow-y: auto;
+            margin-top: 15px;
+            color: #cbd5e1;
+        }
+
+        .debug-line { margin: 3px 0; }
+        .debug-info { color: var(--primary); }
+        .debug-success { color: var(--success); }
+        .debug-warn { color: var(--warning); }
+        .debug-err { color: var(--danger); }
+
+        .servers-list {
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .server-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: 0.2s;
+        }
+
+        .server-card:hover {
+            border-color: var(--primary);
+        }
+
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .server-name {
+            font-size: 1.05rem;
+            font-weight: bold;
+        }
+
+        .badge {
+            background: #0f172a;
+            border: 1px solid var(--border);
+            color: var(--primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+
+        .server-details {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            word-break: break-all;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .btn-copy {
+            background: #334155;
+            color: #fff;
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: 0.2s;
+        }
+
+        .btn-copy:hover {
+            background: var(--border);
+            color: var(--primary);
+        }
+
+        .copied {
+            background: var(--success) !important;
+            color: #0f172a !important;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>⚡ Конвертер Cacao в VLESS для Podkop</h1>
+    <div class="subtitle">Извлечение серверов из подписки и генерация ссылок для роутера</div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('url')">По ссылке подписки</button>
+        <button class="tab-btn" onclick="switchTab('manual')">Вставить текст / Base64</button>
+    </div>
+
+    <!-- Вкладка ссылки -->
+    <div id="tab-url">
+        <div class="input-group">
+            <input type="text" id="urlInput" placeholder="https://cacaolink.xyz/s/ep791R4cmbVwIPviryqlLg" />
+            <button class="main-btn" id="btnFetch" onclick="fetchFromUrl()">Получить</button>
+        </div>
+    </div>
+
+    <!-- Вкладка ручного ввода -->
+    <div id="tab-manual" style="display: none;">
+        <textarea id="manualInput" placeholder="Вставьте сюда Base64 строку или список vless://..."></textarea>
+        <div style="margin-top: 10px;">
+            <button class="main-btn" onclick="parseManual()">Расшифровать</button>
+        </div>
+    </div>
+
+    <!-- Лог отладки -->
+    <div class="debug-box" id="debugBox">
+        <div class="debug-line debug-info">Готов к работе. Вставьте ссылку или данные.</div>
+    </div>
+
+    <!-- Список серверов -->
+    <div class="servers-list" id="output"></div>
+</div>
+
+<script>
+    function log(msg, type = 'info') {
+        const box = document.getElementById('debugBox');
+        const line = document.createElement('div');
+        line.className = `debug-line debug-${type}`;
+        line.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        box.appendChild(line);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        if (tab === 'url') {
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            document.getElementById('tab-url').style.display = 'block';
+            document.getElementById('tab-manual').style.display = 'none';
+        } else {
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            document.getElementById('tab-url').style.display = 'none';
+            document.getElementById('tab-manual').style.display = 'block';
+        }
+    }
+
+    function decodeBase64Unicode(str) {
+        try {
+            const cleanStr = str.replace(/[\r\n\s]/g, '');
+            const binString = atob(cleanStr);
+            const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0));
+            return new TextDecoder().decode(bytes);
+        } catch (e) {
+            try {
+                return atob(str.trim());
+            } catch (err) {
+                return str;
+            }
+        }
+    }
+
+    function parseVless(link) {
+        try {
+            const url = new URL(link);
+            const params = new URLSearchParams(url.search);
+            const rawName = url.hash ? decodeURIComponent(url.hash.substring(1)) : `${url.hostname}:${url.port}`;
+            return {
+                raw: link,
+                name: rawName,
+                host: url.hostname,
+                port: url.port,
+                type: params.get('type') || 'tcp',
+                security: params.get('security') || 'none',
+                sni: params.get('sni') || url.hostname
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function copyText(btn, text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const orig = btn.innerText;
+            btn.innerText = "✓ Скопировано!";
+            btn.classList.add("copied");
+            setTimeout(() => {
+                btn.innerText = orig;
+                btn.classList.remove("copied");
+            }, 1500);
+        });
+    }
+
+    function renderServers(rawText) {
+        const container = document.getElementById('output');
+        container.innerHTML = '';
+
+        let decoded = rawText.includes('vless://') ? rawText : decodeBase64Unicode(rawText);
+        const lines = decoded.split('\n').map(l => l.trim()).filter(l => l.startsWith('vless://'));
+
+        if (lines.length === 0) {
+            log("Не удалось найти VLESS ссылки в расшифрованном ответе.", "err");
+            log("Начало полученного текста: " + rawText.substring(0, 150) + "...", "warn");
+            return;
+        }
+
+        log(`Успешно извлечено серверов: ${lines.length}`, "success");
+
+        lines.forEach((line) => {
+            const info = parseVless(line);
+            if (!info) return;
+
+            const card = document.createElement('div');
+            card.className = 'server-card';
+            const uciCmd = `uci set podkop.main.proxy_string='${info.raw}' && uci commit podkop && /etc/init.d/podkop restart`;
+
+            card.innerHTML = `
+                <div class="server-header">
+                    <div class="server-name">${info.name}</div>
+                    <div class="badges">
+                        <span class="badge">${info.type}</span>
+                        <span class="badge">${info.security}</span>
+                    </div>
+                </div>
+                <div class="server-details">
+                    Адрес: ${info.host}:${info.port} | SNI: ${info.sni}
+                </div>
+                <div class="actions">
+                    <button class="btn-copy" onclick="copyText(this, '${info.raw}')">📋 Копировать VLESS для Podkop</button>
+                    <button class="btn-copy" onclick="copyText(this, \`${uciCmd}\`)">💻 Копировать команду UCI</button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function parseManual() {
+        const val = document.getElementById('manualInput').value.trim();
+        if (!val) {
+            log("Поле ручного ввода пусто!", "warn");
+            return;
+        }
+        log("Парсинг вставленного текста...", "info");
+        renderServers(val);
+    }
+
+    async function fetchFromUrl() {
+        const url = document.getElementById('urlInput').value.trim();
+        const btn = document.getElementById('btnFetch');
+        if (!url) {
+            log("Введите ссылку на подписку!", "warn");
+            return;
+        }
+
+        btn.disabled = true;
+        log(`Начинаем загрузку: ${url}`, "info");
+
+        // Список CORS-шлюзов для поочередной проверки
+        const proxies = [
+            { name: "CodeTabs", url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}` },
+            { name: "AllOrigins", url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+            { name: "CorsProxy.io", url: `https://corsproxy.io/?${encodeURIComponent(url)}` }
+        ];
+
+        let success = false;
+
+        for (const proxy of proxies) {
+            try {
+                log(`Пробуем шлюз ${proxy.name}...`, "info");
+                const resp = await fetch(proxy.url, { headers: { 'X-Requested-With': 'v2rayN' } });
+                
+                if (!resp.ok) {
+                    log(`Шлюз ${proxy.name} вернул HTTP ${resp.status}`, "warn");
+                    continue;
+                }
+
+                const data = await resp.text();
+                if (data && data.length > 20) {
+                    log(`Шлюз ${proxy.name} успешно вернул данные (${data.length} байт)`, "success");
+                    renderServers(data);
+                    success = true;
+                    break;
+                }
+            } catch (err) {
+                log(`Ошибка на шлюзе ${proxy.name}: ${err.message}`, "err");
+            }
+        }
+
+        if (!success) {
+            log("Все публичные шлюзы недоступны (блокируются сетью).", "err");
+            log("👉 Перейдите на вкладку 'Вставить текст / Base64' и вставьте результат команды curl.", "warn");
+        }
+
+        btn.disabled = false;
+    }
+</script>
+
+</body>
+</html>
