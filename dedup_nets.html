@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Удаление дубликатов сетей</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 16px; }
+    textarea { width: 100%; height: 200px; font-family: monospace; font-size: 14px; }
+    button { margin: 12px 0; padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    .info { color: #555; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Удаление дубликатов сетей</h1>
+  <p>Вставь список (через запятую, пробел или с новой строки):</p>
+
+  <textarea id="input" placeholder="62.96.74.120/29, 213.61.91.48/29, ..."></textarea>
+  <br>
+  <button onclick="dedupe()">Убрать дубликаты</button>
+  <div class="info" id="stats"></div>
+
+  <h3>Результат:</h3>
+  <textarea id="output" readonly></textarea>
+
+  <script>
+    function dedupe() {
+      const raw = document.getElementById('input').value;
+
+      // Разбиваем по запятым, пробелам, переводам строк
+      const items = raw
+        .split(/[\s,;]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      const unique = [...new Set(items)];
+
+      document.getElementById('output').value = unique.join(', ');
+      document.getElementById('stats').textContent =
+        `Было: ${items.length} → Стало: ${unique.length} (удалено: ${items.length - unique.length})`;
+    }
+  </script>
+</body>
+</html>
