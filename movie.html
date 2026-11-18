@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Мультфильм: Дельфинчик Финн и упавшая звезда</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      overflow: hidden;
+      background: #0a1128;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      user-select: none;
+    }
+    canvas { display: block; }
+
+    /* Кинематографические полосы сверху и снизу */
+    .cinema-bar {
+      position: fixed;
+      left: 0;
+      width: 100%;
+      height: 54px;
+      background: #070b14;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #f8f9fa;
+    }
+    .cinema-top { top: 0; justify-content: space-between; padding: 0 24px; font-size: 14px; color: #adb5bd; }
+    .cinema-bottom { bottom: 0; font-size: 18px; letter-spacing: 0.3px; text-align: center; padding: 0 20px; }
+
+    /* Стартовый экран и экран финала */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(20, 40, 80, 0.88), rgba(5, 10, 25, 0.96));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+      transition: opacity 0.6s ease;
+    }
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+    .overlay h1 {
+      font-size: clamp(28px, 4vw, 48px);
+      margin-bottom: 12px;
+      background: linear-gradient(90deg, #48cae4, #ffd166);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .overlay p { font-size: 16px; color: #cbd5e1; margin-bottom: 28px; max-width: 460px; line-height: 1.5; }
+
+    button {
+      background: linear-gradient(135deg, #ffd166, #f77f00);
+      border: none;
+      color: #1d1e2c;
+      font-weight: 700;
+      font-size: 18px;
+      padding: 14px 34px;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 8px 25px rgba(247, 127, 0, 0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover { transform: scale(1.06); box-shadow: 0 10px 30px rgba(247, 127, 0, 0.6); }
+
+    .mute-btn {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      font-size: 13px;
+      padding: 6px 14px;
+      box-shadow: none;
+    }
+    .mute-btn:hover { transform: none; background: rgba(255, 255, 255, 0.22); box-shadow: none; }
+  </style>
+</head>
+<body>
+
+  <div class="cinema-bar cinema-top">
+    <span>🎬 Мини-мультфильм: «Финн и упавшая звезда»</span>
+    <button id="muteBtn" class="mute-btn">🔊 Звук: Вкл</button>
+  </div>
+
+  <canvas id="stage"></canvas>
+
+  <div class="cinema-bar cinema-bottom" id="subtitle"></div>
+
+  <div class="overlay" id="startScreen">
+    <h1>Дельфинчик Финн и упавшая звезда</h1>
+    <p>Добрая сказка о мечте, смелости и дружбе. Включите звук для лучшего погружения!</p>
+    <button id="playBtn">▶ Смотреть мультфильм</button>
+  </div>
+
+  <div class="overlay hidden" id="endScreen">
+    <h1>Конец!</h1>
+    <p>С тех пор каждую ночь звёзды приветливо подмигивают своему храброму другу из океана.</p>
+    <button id="replayBtn">↺ Смотреть ещё раз</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+    const subtitleEl = document.getElementById('subtitle');
+    const startScreen = document.getElementById('startScreen');
+    const endScreen = document.getElementById('endScreen');
+    const playBtn = document.getElementById('playBtn');
+    const replayBtn = document.getElementById('replayBtn');
+    const muteBtn = document.getElementById('muteBtn');
+
+    let width, height;
+    function resize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ================= ЗВУКОВОЙ ДВИЖОК (Web Audio API) =================
+    let audioCtx = null;
+    let isMuted = false;
+
+    muteBtn.addEventListener('click', () => {
+      isMuted = !isMuted;
+      muteBtn.textContent = isMuted ? '🔇 Звук: Выкл' : '🔊 Звук: Вкл';
+    });
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playTone(freq, duration, type = 'sine', vol = 0.12, delay = 0) {
+      if (isMuted || !audioCtx) return;
+      const now = audioCtx.currentTime + delay;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.exponentialRampToValueAtTime(vol, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + duration);
+    }
+
+    function playNoise(duration, filterFreq, vol = 0.15) {
+      if (isMuted || !audioCtx) return;
+      const bufferSize = audioCtx.sampleRate * duration;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = filterFreq;
+
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+      noise.start();
+    }
+
+    const sfx = {
+      fall: () => {
+        if (isMuted || !audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(900, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 1.2);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 1.2);
+      },
+      splash: () => playNoise(0.5, 900, 0.18),
+      magic: () => [523, 659, 784, 1046].forEach((f, i) => playTone(f, 0.35, 'triangle', 0.1, i * 0.09)),
+      thunder: () => playNoise(1.2, 160, 0.28),
+      reunion: () => [523, 659, 784, 987, 1046, 1318].forEach((f, i) => playTone(f, 0.6, 'sine', 0.11, i * 0.11))
+    };
+
+    // ================= ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =================
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const lerp = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
+    const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+
+    function lerpColor(c1, c2, t) {
+      t = clamp(t, 0, 1);
+      const r1 = parseInt(c1.slice(1, 3), 16), g1 = parseInt(c1.slice(3, 5), 16), b1 = parseInt(c1.slice(5, 7), 16);
+      const r2 = parseInt(c2.slice(1, 3), 16), g2 = parseInt(c2.slice(3, 5), 16), b2 = parseInt(c2.slice(5, 7), 16);
+      return `rgb(${Math.round(lerp(r1, r2, t))}, ${Math.round(lerp(g1, g2, t))}, ${Math.round(lerp(b1, b2, t))})`;
+    }
+
+    // ================= СОСТОЯНИЕ МУЛЬТФИЛЬМА =================
+    let playing = false;
+    let storyTime = 0;
+    let lastTimestamp = 0;
+    const triggeredEvents = new Set();
+
+    function triggerOnce(id, fn) {
+      if (!triggeredEvents.has(id)) {
+        triggeredEvents.add(id);
+        fn();
+      }
+    }
+
+    // Декорации
+    const bgStars = Array.from({ length: 90 }, () => ({
+      x: Math.random(),
+      y: Math.random() * 0.8,
+      r: 0.8 + Math.random() * 2,
+      twinkle: Math.random() * Math.PI * 2
+    }));
+
+    const clouds = Array.from({ length: 14 }, (_, i) => ({
+      x: (i / 14) * 1.3,
+      y: 0.15 + Math.random() * 0.6,
+      scale: 0.7 + Math.random() * 0.9,
+      speed: 0.04 + Math.random() * 0.06,
+      stormy: i % 2 === 0
+    }));
+
+    const particles = [];
+    function addParticles(x, y, count, colors, speed = 3, gravity = 0.05) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const spd = Math.random() * speed;
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * spd,
+          vy: Math.sin(angle) * spd - 1,
+          size: 2 + Math.random() * 4,
+          alpha: 1,
+          gravity,
+          color: colors[Math.floor(Math.random() * colors.length)]
+        });
+      }
+    }
+
+    // ================= ОТРИСОВКА ПЕРСОНАЖЕЙ И ОБЪЕКТОВ =================
+
+    function drawCloud(x, y, scale, isStorm, alpha = 0.9) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = isStorm ? '#3b4252' : '#ffffff';
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 32, 0, Math.PI * 2);
+      ctx.arc(32, -12, 38, 0, Math.PI * 2);
+      ctx.arc(70, -4, 30, 0, Math.PI * 2);
+      ctx.arc(36, 14, 30, 0, Math.PI * 2);
+      ctx.arc(-26, 10, 24, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Хмурые глаза у грозовых туч
+      if (isStorm) {
+        ctx.fillStyle = '#ffd166';
+        ctx.beginPath();
+        ctx.arc(16, -2, 3.5, 0, Math.PI * 2);
+        ctx.arc(38, -2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#2e3440';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(8, -10); ctx.lineTo(22, -5);
+        ctx.moveTo(46, -10); ctx.lineTo(32, -5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawDolphin(x, y, angle, scale, mood = 'normal', glow = 0, time = 0) {
+      const tailWave = Math.sin(time * 8) * 12;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.scale(scale, scale);
+
+      // Волшебное свечение
+      if (glow > 0) {
+        const g = ctx.createRadialGradient(0, 0, 15, 0, 0, 95);
+        g.addColorStop(0, `rgba(255, 209, 102, ${0.45 * glow})`);
+        g.addColorStop(1, 'rgba(255, 209, 102, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, 95, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Хвостовой плавник
+      ctx.save();
+      ctx.translate(-70, tailWave * 0.65);
+      ctx.rotate(tailWave * 0.025);
+      ctx.fillStyle = '#0077b6';
+      ctx.beginPath();
+      ctx.moveTo(4, 0);
+      ctx.quadraticCurveTo(-15, -24, -28, -26);
+      ctx.quadraticCurveTo(-18, -6, -12, 0);
+      ctx.quadraticCurveTo(-18, 6, -28, 26);
+      ctx.quadraticCurveTo(-15, 24, 4, 0);
+      ctx.fill();
+      ctx.restore();
+
+      // Тело
+      ctx.beginPath();
+      ctx.moveTo(70, 4);
+      ctx.bezierCurveTo(60, 0, 52, -2, 42, -12);
+      ctx.quadraticCurveTo(20, -24, 2, -22);
+      ctx.bezierCurveTo(-6, -38, -18, -44, -22, -42);
+      ctx.quadraticCurveTo(-15, -28, -18, -20);
+      ctx.quadraticCurveTo(-48, -14, -72, -3 + tailWave * 0.65);
+      ctx.lineTo(-72, 4 + tailWave * 0.65);
+      ctx.quadraticCurveTo(-40, 14, -5, 18);
+      ctx.quadraticCurveTo(30, 20, 52, 10);
+      ctx.quadraticCurveTo(64, 10, 70, 6);
+      ctx.closePath();
+
+      const bodyGrad = ctx.createLinearGradient(0, -35, 0, 20);
+      bodyGrad.addColorStop(0, '#023e8a');
+      bodyGrad.addColorStop(0.55, '#0096c7');
+      bodyGrad.addColorStop(1, '#48cae4');
+      ctx.fillStyle = bodyGrad;
+      ctx.fill();
+
+      // Светлое брюшко
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = '#caf0f8';
+      ctx.beginPath();
+      ctx.ellipse(10, 22, 65, 16, -0.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Грудной плавник
+      ctx.fillStyle = '#0077b6';
+      ctx.beginPath();
+      ctx.moveTo(15, 12);
+      ctx.quadraticCurveTo(4, 34, -10, 32);
+      ctx.quadraticCurveTo(-2, 18, 2, 12);
+      ctx.closePath();
+      ctx.fill();
+
+      // Улыбка
+      ctx.strokeStyle = '#023e8a';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(68, 6);
+      ctx.quadraticCurveTo(56, 9, 48, 6);
+      ctx.stroke();
+
+      // Глаз (меняется от эмоции)
+      if (mood === 'happy') {
+        ctx.strokeStyle = '#03045e';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(44, -1, 4, Math.PI, 0);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#03045e';
+        ctx.beginPath();
+        ctx.arc(44, -2, 3.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(45, -3, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (mood === 'brave') {
+          ctx.strokeStyle = '#03045e';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(39, -8);
+          ctx.lineTo(49, -5);
+          ctx.stroke();
+        }
+      }
+
+      // Румянец
+      ctx.fillStyle = 'rgba(255, 117, 143, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(38, 5, 5, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawStarChar(x, y, radius, angle = 0, mood = 'happy', alpha = 1) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.globalAlpha = alpha;
+
+      // Свечение звёздочки
+      const g = ctx.createRadialGradient(0, 0, radius * 0.2, 0, 0, radius * 2.4);
+      g.addColorStop(0, 'rgba(255, 225, 105, 0.7)');
+      g.addColorStop(1, 'rgba(255, 225, 105, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 5-конечная форма
+      ctx.fillStyle = '#ffd166';
+      ctx.strokeStyle = '#f77f00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? radius : radius * 0.48;
+        const a = (i * Math.PI) / 5 - Math.PI / 2;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Мордочка
+      ctx.fillStyle = '#3d2c2e';
+      ctx.beginPath();
+      ctx.arc(-radius * 0.22, -radius * 0.05, 2.2, 0, Math.PI * 2);
+      ctx.arc(radius * 0.22, -radius * 0.05, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#3d2c2e';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (mood === 'sad') {
+        ctx.arc(0, radius * 0.28, radius * 0.16, Math.PI, 0);
+      } else {
+        ctx.arc(0, radius * 0.12, radius * 0.16, 0, Math.PI);
+      }
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawMoon(x, y, scale, alpha, happy) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = alpha;
+
+      const g = ctx.createRadialGradient(-20, 0, 20, -20, 0, 150);
+      g.addColorStop(0, 'rgba(255, 243, 176, 0.45)');
+      g.addColorStop(1, 'rgba(255, 243, 176, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(-20, 0, 150, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Полумесяц
+      ctx.fillStyle = '#fff3b0';
+      ctx.beginPath();
+      ctx.moveTo(25, -80);
+      ctx.bezierCurveTo(-75, -60, -75, 60, 25, 80);
+      ctx.bezierCurveTo(-15, 45, -15, -45, 25, -80);
+      ctx.fill();
+
+      // Улыбающееся лицо Луны
+      ctx.strokeStyle = '#7f5539';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      if (happy) {
+        ctx.arc(-32, -12, 6, Math.PI, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(-30, 10, 10, 0.1, Math.PI - 0.3);
+        ctx.stroke();
+      } else {
+        ctx.arc(-32, -12, 6, 0, Math.PI);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawSpeechBubble(x, y, text) {
+      ctx.save();
+      ctx.font = 'bold 15px "Segoe UI", sans-serif';
+      const paddingX = 16;
+      const boxW = ctx.measureText(text).width + paddingX * 2;
+      const boxH = 38;
+      const bx = clamp(x - boxW / 2, 16, width - boxW - 16);
+      const by = clamp(y - boxH - 18, 65, height - 110);
+
+      // Тень и фон облачка
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      ctx.shadowColor = 'rgba(0,0,0,0.25)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, boxW, boxH, 16);
+      ctx.fill();
+
+      // Хвостик диалога
+      ctx.shadowBlur = 0;
+      const tailX = clamp(x, bx + 18, bx + boxW - 18);
+      ctx.beginPath();
+      ctx.moveTo(tailX - 8, by + boxH - 1);
+      ctx.lineTo(tailX, by + boxH + 10);
+      ctx.lineTo(tailX + 8, by + boxH - 1);
+      ctx.fill();
+
+      // Текст
+      ctx.fillStyle = '#1d3557';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, bx + boxW / 2, by + boxH / 2 + 1);
+      ctx.restore();
+    }
+
+    function drawOcean(oceanY, time) {
+      if (oceanY > height + 60) return;
+
+      // Задняя волна
+      ctx.fillStyle = '#0077b6';
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      for (let x = 0; x <= width + 20; x += 20) {
+        const y = oceanY + Math.sin(x * 0.015 + time * 2.5) * 10;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      ctx.fill();
+
+      // Передняя волна
+      const grad = ctx.createLinearGradient(0, oceanY, 0, height);
+      grad.addColorStop(0, '#00b4d8');
+      grad.addColorStop(1, '#03045e');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      for (let x = 0; x <= width + 20; x += 20) {
+        const y = oceanY + 14 + Math.cos(x * 0.02 - time * 3.2) * 12;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ================= РЕЖИССУРА И АНИМАЦИЯ СЦЕН =================
+    function render(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+      lastTimestamp = timestamp;
+
+      if (playing) {
+        storyTime += dt;
+      }
+
+      const t = storyTime;
+
+      // 1. Высота камеры (0 = океан, 1 = высоко в космосе)
+      let altitude = 0;
+      if (t >= 11.5 && t < 25) {
+        altitude = smooth((t - 11.5) / 12.5);
+      } else if (t >= 25 && t < 32) {
+        altitude = 1;
+      } else if (t >= 32 && t < 37) {
+        altitude = 1 - smooth((t - 32) / 5);
+      }
+
+      // 2. Цвет неба по ходу сюжета (День -> Гроза -> Космос -> Рассвет)
+      let skyTop = '#1e88e5', skyBottom = '#90e0ef';
+      if (t >= 15 && t < 18) {
+        const k = smooth((t - 15) / 3);
+        skyTop = lerpColor('#1e88e5', '#2b2d42', k);
+        skyBottom = lerpColor('#90e0ef', '#4a4e69', k);
+      } else if (t >= 18 && t < 23) {
+        skyTop = '#2b2d42'; skyBottom = '#4a4e69';
+      } else if (t >= 23 && t < 26) {
+        const k = smooth((t - 23) / 3);
+        skyTop = lerpColor('#2b2d42', '#0b0924', k);
+        skyBottom = lerpColor('#4a4e69', '#241b57', k);
+      } else if (t >= 26 && t < 32) {
+        skyTop = '#0b0924'; skyBottom = '#241b57';
+      } else if (t >= 32 && t < 37) {
+        const k = smooth((t - 32) / 5);
+        skyTop = lerpColor('#0b0924', '#3a86ff', k);
+        skyBottom = lerpColor('#241b57', '#ffafcc', k);
+      } else if (t >= 37) {
+        skyTop = '#3a86ff'; skyBottom = '#ffafcc';
+      }
+
+      // Рисуем небо
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+      skyGrad.addColorStop(0, skyTop);
+      skyGrad.addColorStop(1, skyBottom);
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Вспышки молнии во время грозы (17-22 сек)
+      if (playing && ((t > 17.5 && t < 17.7) || (t > 20.5 && t < 20.7))) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      // Фоновые звёзды в космосе
+      if (altitude > 0.45) {
+        const starVis = clamp((altitude - 0.45) * 1.8, 0, 1);
+        bgStars.forEach(s => {
+          const twinkle = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + s.twinkle));
+          ctx.fillStyle = `rgba(255, 255, 255, ${starVis * twinkle})`;
+          ctx.beginPath();
+          ctx.arc(s.x * width, s.y * height, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // Луна (появляется наверху)
+      if (altitude > 0.6) {
+        const moonAlpha = clamp((altitude - 0.6) * 2.5, 0, 1);
+        const moonX = width * 0.78;
+        const moonY = height * 0.28 + (1 - altitude) * 250;
+        drawMoon(moonX, moonY, 1, moonAlpha, t >= 28);
+      }
+
+      // Облака (особенно густые в середине полёта)
+      const cloudVis = altitude > 0.1 && altitude < 0.92 ? Math.sin(altitude * Math.PI) : 0;
+      if (cloudVis > 0.02) {
+        const isStormTime = t >= 15.5 && t <= 23.5;
+        clouds.forEach(c => {
+          c.x -= c.speed * (isStormTime ? 2.5 : 1) * dt * 2.5;
+          if (c.x < -0.2) c.x = 1.2;
+          drawCloud(c.x * width, c.y * height, c.scale, isStormTime && c.stormy, cloudVis * 0.9);
+        });
+      }
+
+      // Координаты океана и дельфина
+      const oceanBaseY = height * 0.72;
+      const oceanY = oceanBaseY + altitude * height * 0.9;
+
+      let dX = width * 0.28;
+      let dY = oceanBaseY + 12;
+      let dAngle = 0;
+      let dMood = 'normal';
+      let dGlow = 0;
+      let subtitle = '';
+      let bubble = null;
+
+      // Позиция Звёздочки
+      let starX = -100, starY = -100, starVisible = false, starMood = 'happy', starRot = t * 1.5;
+
+      // === СЦЕНАРИЙ ПО СЕКУНДАМ ===
+      if (!playing) {
+        dX = width * 0.5;
+        dY = oceanBaseY + Math.sin(timestamp * 0.003) * 12;
+      } else if (t < 5) {
+        // Сцена 1: Мечта в океане
+        subtitle = 'Жил-был дельфинчик Финн, который мечтал дотянуться до облаков...';
+        const hop = Math.abs(Math.sin(t * 1.6));
+        dX = width * (0.2 + t * 0.04);
+        dY = oceanBaseY + 10 - hop * 75;
+        dAngle = Math.cos(t * 1.6) * -0.4;
+        if (t > 2.2) bubble = { x: dX + 20, y: dY - 30, text: 'Вот бы научиться летать!' };
+      } else if (t < 10.5) {
+        // Сцена 2: Падающая звезда
+        subtitle = 'Но однажды прямо с неба упала маленькая звёздочка!';
+        dX = width * 0.4;
+        dY = oceanBaseY + Math.sin(t * 3) * 8;
+        starVisible = true;
+
+        if (t < 6.4) {
+          triggerOnce('fall', sfx.fall);
+          const k = (t - 5) / 1.4;
+          starX = lerp(width * 0.85, width * 0.58, k);
+          starY = lerp(40, oceanBaseY - 5, k * k);
+          addParticles(starX, starY, 1, ['#ffd166', '#ffffff'], 1.5, 0);
+        } else {
+          triggerOnce('splash1', () => {
+            sfx.splash();
+            addParticles(width * 0.58, oceanBaseY, 18, ['#ffffff', '#90e0ef'], 5, 0.15);
+          });
+          starMood = 'sad';
+          starX = width * 0.58;
+          starY = oceanBaseY - 8 + Math.sin(t * 8) * 3; // дрожит на воде
+          dX = lerp(width * 0.4, width * 0.46, clamp((t - 6.5) / 1.5, 0, 1));
+
+          if (t < 8.5) {
+            bubble = { x: starX, y: starY - 20, text: 'Ой! Я потерялась, мама-Луна далеко...' };
+          } else {
+            bubble = { x: dX, y: dY - 35, text: 'Не плачь! Я доставлю тебя домой!' };
+          }
+        }
+      } else if (t < 15.5) {
+        // Сцена 3: Волшебный взлёт
+        subtitle = 'Звёздочка поделилась с Финном магией, и он взлетел в небо!';
+        triggerOnce('magic', sfx.magic);
+        const k = smooth((t - 10.5) / 5);
+        dGlow = smooth((t - 10.5) / 1.5);
+        dX = lerp(width * 0.46, width * 0.35, k);
+        dY = lerp(oceanBaseY, height * 0.52, k);
+        dAngle = lerp(0, -0.45, smooth((t - 11.5) / 2));
+
+        if (t > 11.5 && t < 12.2) {
+          triggerOnce('splash2', () => {
+            sfx.splash();
+            addParticles(dX, oceanY, 22, ['#ffffff', '#90e0ef', '#ffd166'], 6, 0.12);
+          });
+        }
+
+        starVisible = true;
+        starX = dX + Math.cos(dAngle) * 18 + Math.sin(dAngle) * 28;
+        starY = dY + Math.sin(dAngle) * 18 - Math.cos(dAngle) * 28;
+        addParticles(dX - 70, dY + 15, 2, ['#ffd166', '#bde0fe'], 2, 0);
+      } else if (t < 24) {
+        // Сцена 4: Гроза!
+        subtitle = 'На пути встали хмурые грозовые тучи, но храбрый дельфин не сдаётся!';
+        if (t > 17.5) triggerOnce('thunder1', sfx.thunder);
+        if (t > 20.5) triggerOnce('thunder2', sfx.thunder);
+
+        dGlow = 1;
+        dMood = 'brave';
+        dX = width * 0.35 + Math.sin(t * 2) * 30;
+        dY = height * 0.52 + Math.sin(t * 3.5) * 45;
+        dAngle = Math.cos(t * 3.5) * 0.25;
+
+        // Смелое сальто на 20-й секунде
+        if (t > 19.5 && t < 20.8) {
+          dAngle -= ((t - 19.5) / 1.3) * Math.PI * 2;
+        }
+
+        starVisible = true;
+        starX = dX + 10;
+        starY = dY - 34;
+        addParticles(dX - 70, dY, 2, ['#ffd166', '#ffffff'], 2.5, 0);
+        if (t > 18 && t < 22) bubble = { x: dX + 20, y: dY - 45, text: 'Держись крепче! Мы прорвёмся!' };
+      } else if (t < 32) {
+        // Сцена 5: Встреча с Луной
+        subtitle = 'Финн вынес малышку к звёздам, прямо в объятия мамы-Луны!';
+        dGlow = clamp(1 - (t - 28) / 2, 0, 1);
+        dMood = 'happy';
+
+        const approach = smooth((t - 24) / 3.5);
+        dX = lerp(width * 0.35, width * 0.58, approach);
+        dY = lerp(height * 0.52, height * 0.36, approach) + Math.sin(t * 3) * 8;
+        dAngle = lerp(0, -0.1, approach);
+
+        starVisible = true;
+        if (t < 27.5) {
+          starX = dX + 15;
+          starY = dY - 30;
+        } else {
+          triggerOnce('reunion', () => {
+            sfx.reunion();
+            addParticles(width * 0.72, height * 0.28, 45, ['#ffd166', '#ffafcc', '#a2d2ff', '#ffffff'], 6, 0.04);
+          });
+          const hop = smooth((t - 27.5) / 1.5);
+          starX = lerp(dX + 15, width * 0.72, hop);
+          starY = lerp(dY - 30, height * 0.29, hop) - Math.sin(hop * Math.PI) * 40;
+          bubble = { x: width * 0.72, y: height * 0.18, text: 'Спасибо тебе, храбрый дельфин!' };
+        }
+      } else if (t < 39) {
+        // Сцена 6: Домой по радуге
+        subtitle = 'Довольный Финн скользит обратно в родной океан по сияющей радуге.';
+        dMood = 'happy';
+        const dive = smooth((t - 32) / 5);
+        dX = lerp(width * 0.58, width * 0.45, dive);
+        dY = lerp(height * 0.36, oceanBaseY, dive);
+        dAngle = t < 36.2 ? 0.55 : lerp(0.55, 0, (t - 36.2) / 1.5);
+
+        if (t < 36.5) {
+          // Радужный шлейф
+          addParticles(dX - 60, dY - 30, 3, ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93'], 1.5, 0);
+        } else {
+          triggerOnce('splash3', () => {
+            sfx.splash();
+            addParticles(dX, oceanBaseY, 26, ['#ffffff', '#90e0ef', '#48cae4'], 6, 0.16);
+          });
+        }
+      } else {
+        // Финал
+        playing = false;
+        dMood = 'happy';
+        dX = width * 0.45;
+        dY = oceanBaseY + Math.sin(timestamp * 0.003) * 10;
+        endScreen.classList.remove('hidden');
+      }
+
+      subtitleEl.textContent = subtitle;
+
+      // Обновление и отрисовка частиц
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity;
+        p.alpha -= 0.016;
+        if (p.alpha <= 0) { particles.splice(i, 1); continue; }
+
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Отрисовка героев и океана
+      drawDolphin(dX, dY, dAngle, 1.15, dMood, dGlow, t || timestamp * 0.001);
+      if (starVisible) drawStarChar(starX, starY, 16, starRot, starMood);
+      drawOcean(oceanY, t || timestamp * 0.001);
+
+      if (bubble) drawSpeechBubble(bubble.x, bubble.y, bubble.text);
+
+      requestAnimationFrame(render);
+    }
+
+    function startCartoon() {
+      initAudio();
+      storyTime = 0;
+      particles.length = 0;
+      triggeredEvents.clear();
+      playing = true;
+      startScreen.classList.add('hidden');
+      endScreen.classList.add('hidden');
+    }
+
+    playBtn.addEventListener('click', startCartoon);
+    replayBtn.addEventListener('click', startCartoon);
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
